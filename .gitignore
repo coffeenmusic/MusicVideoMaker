@@ -1,4 +1,6 @@
-*.mp4
 .ipynb_checkpoints/
 __pycache__/
+pretrained_models/
+output/
 *.wav
+*.mp4
