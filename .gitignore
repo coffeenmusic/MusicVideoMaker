@@ -4,3 +4,4 @@ pretrained_models/
 output/
 *.wav
 *.mp4
+*.mkv
