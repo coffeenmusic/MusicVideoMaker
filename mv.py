@@ -19,6 +19,7 @@ TODO:
 
 VID_DIR = os.path.join('Media', 'Videos') # Default video directory
 EXPORT_FILENAME = 'music_video.mp4'
+USE_DECORD = False
 amp_thresh = 1000000000
 #amp_thresh = 150000000
 args = sys.argv
@@ -54,6 +55,8 @@ while True:
     elif args[i] == '-t':
         i += 1
         amp_thresh = int(args[i])
+    elif args[i] == '-hs':
+        USE_DECORD = True
 
     i += 1
     if i >= len(args):
@@ -80,25 +83,32 @@ def scene_changed(prev_frame, frame, delta_thresh=30):
     return False
 
 
-def split_video(video, max_clips=0, check_freq=1, print_split_frames=False, print_cmp_frames=False):
+def split_video_decord(vid_filename, check_freq=1, print_split_frames=False, print_cmp_frames=False):
     """
     print_split_frames - for troubleshooting, may remove later
     print_cmp_frames - for troubleshooting, may remove later
     max_clips - set above 0 to stop early when len(clips) greater than max_clips
     check_freq [seconds] - how often to compare two frames for scene change
     """
-    clip_cnt = 0  # Number of clips created from video
-    start_time = 0  # time in seconds from video where current clip starts
-    clips = []  # list of subclips of video file created by video split
+    with open(vid_filename, 'rb') as f:
+        video = VideoFileClip(vid_filename)
+        vr = VideoReader(vid_filename, ctx=cpu(0))
 
-    frame_freq = int(video.reader.fps * check_freq)
-    print(f'Compare frames every {check_freq} seconds. This equals {frame_freq} frames.')
+        clip_cnt = 0  # Number of clips created from video
+        start_time = 0  # time in seconds from video where current clip starts
+        clips = []  # list of subclips of video file created by video split
 
-    prev_frame = video.get_frame(0)  # Initialize previous frame
+        frame_freq = int(video.reader.fps * check_freq)
+        print(f'Compare frames every {check_freq} seconds. This equals {frame_freq} frames.')
 
-    for i, (time, frame) in tqdm(enumerate(video.iter_frames(with_times=True))):
+        total_frames = len(vr)
 
-        if i % frame_freq == 0:
+        prev_frame = vr[0]
+
+        no_change_cnt = 0
+        for i in range(0, total_frames, frame_freq):
+            frame = vr[i].asnumpy()
+
             if print_cmp_frames:
                 print_frame(np.append(prev_frame, frame, axis=1))
 
@@ -107,115 +117,24 @@ def split_video(video, max_clips=0, check_freq=1, print_split_frames=False, prin
                     if print_split_frames:
                         print_frame(prev_frame)
 
-                    clips += [video.subclip(start_time, stop_time)]
+                    clip = video.subclip(start_time, stop_time)
 
-                    start_time = time
+                    start_time = i / video.reader.fps
 
                     clip_cnt += 1
 
-            prev_frame = frame.copy()
-            stop_time = time
+                    yield clip
+                else:
+                    no_change_cnt += 1
 
-            # Exit when we have the number of clips requested
-            if max_clips != 0 and clip_cnt > max_clips:
-                break
-    return clips
+                if no_change_cnt > 10:
+                    cont = input('Not seeing scene changes. Continue [y/n]?')
+                    if cont.lower() not in ['y', 'yes']:
+                        break
+            prev_frame = frame
+            stop_time = i / video.reader.fps
 
-
-# def split_video2(vid_filename, max_clips=0, check_freq=1, print_split_frames=False, print_cmp_frames=False):
-#     """
-#     print_split_frames - for troubleshooting, may remove later
-#     print_cmp_frames - for troubleshooting, may remove later
-#     max_clips - set above 0 to stop early when len(clips) greater than max_clips
-#     check_freq [seconds] - how often to compare two frames for scene change
-#     """
-#     video = VideoFileClip(vid_filename)
-#     cap = cv2.VideoCapture(vid_filename) # Uses opencv to iterate frames because it's faster
-#
-#     clip_cnt = 0  # Number of clips created from video
-#     start_time = 0  # time in seconds from video where current clip starts
-#     clips = []  # list of subclips of video file created by video split
-#
-#     frame_freq = int(video.reader.fps * check_freq)
-#     print(f'Compare frames every {check_freq} seconds. This equals {frame_freq} frames.')
-#
-#     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-#
-#     cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-#     _, prev_frame = cap.read()  # Initialize previous frame
-#
-#     for i in range(0, total_frames, frame_freq):
-#         cap.set(cv2.CAP_PROP_POS_FRAMES, i)
-#         _, frame = cap.read()
-#
-#         if print_cmp_frames:
-#             print_frame(np.append(prev_frame, frame, axis=1))
-#
-#         if i > 0:  # Skip first frame
-#             if start_time != stop_time and scene_changed(prev_frame, frame, delta_thresh=20):
-#                 if print_split_frames:
-#                     print_frame(prev_frame)
-#
-#                 clips += [video.subclip(start_time, stop_time)]
-#
-#                 start_time = i / video.reader.fps
-#
-#                 clip_cnt += 1
-#
-#         prev_frame = frame.copy()
-#         stop_time = i / video.reader.fps
-#
-#         # Exit when we have the number of clips requested
-#         if max_clips != 0 and clip_cnt > max_clips:
-#             break
-#     return clips
-
-
-# def split_video3(vid_filename, check_freq=1, print_split_frames=False, print_cmp_frames=False):
-#     """
-#     print_split_frames - for troubleshooting, may remove later
-#     print_cmp_frames - for troubleshooting, may remove later
-#     max_clips - set above 0 to stop early when len(clips) greater than max_clips
-#     check_freq [seconds] - how often to compare two frames for scene change
-#     """
-#     with open(vid_filename, 'rb') as f:
-#         video = VideoFileClip(vid_filename)
-#         vr = VideoReader(vid_filename, ctx=cpu(0))
-#
-#         clip_cnt = 0  # Number of clips created from video
-#         start_time = 0  # time in seconds from video where current clip starts
-#         clips = []  # list of subclips of video file created by video split
-#
-#         frame_freq = int(video.reader.fps * check_freq)
-#         print(f'Compare frames every {check_freq} seconds. This equals {frame_freq} frames.')
-#
-#         total_frames = len(vr)
-#
-#         prev_frame = vr[0]
-#
-#         for i in range(0, total_frames, frame_freq):
-#             frame = vr[i].asnumpy()
-#
-#             if print_cmp_frames:
-#                 print_frame(np.append(prev_frame, frame, axis=1))
-#
-#             if i > 0:  # Skip first frame
-#                 if start_time != stop_time and scene_changed(prev_frame, frame, delta_thresh=20):
-#                     if print_split_frames:
-#                         print_frame(prev_frame)
-#
-#                     clip = video.subclip(start_time, stop_time)
-#
-#                     start_time = i / video.reader.fps
-#
-#                     clip_cnt += 1
-#
-#                     yield clip
-#
-#             prev_frame = frame
-#             stop_time = i / video.reader.fps
-
-def split_video4(vid_filename, check_freq=1, print_split_frames=False, print_cmp_frames=False):
+def split_video(vid_filename, check_freq=1, print_split_frames=False, print_cmp_frames=False):
     """
     print_split_frames - for troubleshooting, may remove later
     print_cmp_frames - for troubleshooting, may remove later
@@ -347,30 +266,6 @@ def get_split_times(data, reset_delta=125, chunk=CHUNK, rate=RATE):
 """
 BUILD MUSIC VIDEO FUNCTIONS
 """
-# def build_mv_clips(times):
-#     cut_lens = np.diff([0] + times)
-#
-#     clips = []
-#     mv_clips = []
-#     for cut_len in tqdm(cut_lens):
-#
-#         clip_len = 0
-#         while clip_len < cut_len:
-#             if clips: # If not empty
-#                 clip = clips.pop(0)
-#                 clip_len = clip.duration
-#                 if clip_len > cut_len:
-#                     mv_clips += [clip.subclip(0, cut_len)]
-#             else:
-#                 if VID_FILES: # Get next video and separate in to clips
-#                     print('Getting next video, {}...'.format(VID_FILES[0].split('\\')[-1]))
-#                     #video = VideoFileClip(VID_FILES.pop(0))
-#                     clips = split_video2(VID_FILES.pop(0))
-#                     print(f'{len(clips)} new clips created. Continuing music video creating...')
-#                 else: # No more videos, break
-#                     print('No more videos available')
-#                     return mv_clips
-#     return mv_clips
 def build_mv_clips(times):
     with tqdm(total=len(times)) as pbar:
         cut_lens = np.diff([0] + times)
@@ -378,10 +273,12 @@ def build_mv_clips(times):
         clips = []
         mv_clips = []
 
+        split_func = split_video_decord if USE_DECORD else split_video
+
         cut_len = cut_lens[0]
         for video in VID_FILES:
             print(video)
-            for clip in split_video4(video):
+            for clip in split_func(video):
                 clip_len = clip.duration
                 if clip_len > cut_len:
                     mv_clips += [clip.subclip(0, cut_len)]
