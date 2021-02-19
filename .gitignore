@@ -2,6 +2,7 @@
 __pycache__/
 pretrained_models/
 output/
+*.pkl
 *.wav
 *.mp4
 *.mkv
