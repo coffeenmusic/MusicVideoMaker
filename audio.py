@@ -1,152 +1,94 @@
-import pyaudio
 import wave
+import pyaudio
 import numpy as np
-from sklearn.preprocessing import Normalizer
+from tqdm import tqdm
+import os
+import pickle
 
-class AudioProcessing:
-    CHUNK = 1024*4
-    SCALING_FACTOR = 255
-    FIFO_LONG_LEN = 20 # Rolling delta's long FIFO length
-    FIFO_SHORT_LEN = 1 # Rolling delta's short FIFO length
+def open_stream(audio_file, CHUNK_MUL=1):
+    CHUNK = 1024 * CHUNK_MUL
 
-    def __init__(self, audio_file, buckets):
-        assert audio_file.endswith('.wav'), 'Currenty only WAV files are supported. Extension does not contain .wav'
-        self.audio_file = audio_file
-        
-        self.buckets = buckets
-        
-    def run_preprocessing(self):
-        self.open_stream()
-        
-        assert self.CHUNK % 1024 == 0, 'CHUNK must be a multiple of 1024'
-        
-        all_data, all_rd = self._preprocess_audio()
-        
-        self.close_stream()
-        
-        # Normalize returned audio file data
-        self.normalized_data = Normalizer().fit_transform(all_data)*self.SCALING_FACTOR # Normalize to entire track and not to individual samples
-        self.rolling_deltas = all_rd
-        
-    def open_stream(self):
-        self.wf = wave.open(self.audio_file, 'rb')
-        self.RATE = self.wf.getframerate()
-        self.FPS = self.RATE / self.CHUNK
-        self.seconds_audio = self.wf.getnframes() / self.wf.getframerate()
+    wf = wave.open(audio_file, 'rb')
+    RATE = wf.getframerate()
+    FPS = RATE / CHUNK
 
-        self.p = pyaudio.PyAudio()
+    p = pyaudio.PyAudio()
 
-        self.stream = self.p.open(format=self.p.get_format_from_width(self.wf.getsampwidth()),
-                        channels=self.wf.getnchannels(),
-                        rate=self.RATE,
-                        output=True)
-        
-    def close_stream(self):
-        self.stream.stop_stream()
-        self.stream.close()
-        self.p.terminate()
-        
-    def get_roll_delta(self, fifo_long, fifo_short, lfb):   
-        """
-        Gets the difference between a long FIFO and a short FIFO of the audio's frequency data
-        """
-    
-        fifo_long = np.roll(fifo_long, 1, axis=0)
-        fifo_long[0,:] = lfb
-        roll_long = fifo_long.mean(axis=0)
-        roll_long[(roll_long == float('-inf')) | (roll_long == float('inf'))] = 0.01
-        
-        fifo_short = np.roll(fifo_short, 1, axis=0)
-        fifo_short[0,:] = lfb
-        roll_short = fifo_short.max(axis=0)
-        roll_short[(roll_short == float('-inf')) | (roll_short == float('inf'))] = 0.001
-        
-        delta = roll_short - roll_long
-        delta = np.where(delta > 0, delta, 0.001)
-        
-        return delta, fifo_long, fifo_short
+    stream = p.open(format=p.get_format_from_width(wf.getsampwidth()),
+                    channels=wf.getnchannels(),
+                    rate=RATE,
+                    output=True)
 
-    def print_stats(self):
-        print(f'framerate: {self.RATE}')
-        print(f'FPS: {self.FPS}')
-        print(f'Track Length: {self.seconds_audio}')
-        
-    def _preprocess_audio(self):
-        """
-        Gets each chunk from audio_file, takes the fft, then breaks the frequencies in to buckets.
-        Also gets the rolling delta for each frequency bucket
-        """
-        data = self.wf.readframes(self.CHUNK)
-        data_int = np.frombuffer(data, dtype=np.int32) # Read bytes to int
-     
-        fifo_long = np.zeros((self.FIFO_LONG_LEN, len(self.buckets)))
-        fifo_short = np.zeros((self.FIFO_SHORT_LEN, len(self.buckets)))
-        
-        all_rd = np.empty((0, len(self.buckets))) # Rolling delta for every CHUNK processed. Starts empty and grows with each iteration
+    return stream, wf, CHUNK, RATE
+
+def get_saved_audio(file):
+    audio_pkl_filename = file.split('.')[0] + '.pkl'
+    if os.path.exists(audio_pkl_filename):
+        print('Saved audio data exists. Skipping preprocessing...')
+        saved_data = pickle.load(open(audio_pkl_filename, "rb"))
+        audio_data = saved_data['data']
+        CHUNK = saved_data['chunk']
+        RATE = saved_data['rate']
+
+        return audio_data, CHUNK, RATE
+
+def get_audio_data(file, save=True):
+    stream, wf, CHUNK, RATE = open_stream(file)
+
+    with tqdm(total=wf.getnframes()) as pbar:
+
         cnt = 0
-        while data != '':                
-            freq, PSD = self._get_fft(data_int) # returns frequency and power spectral density
-
-            # Create buckets for each frequency specified in buckets
-            fb, idxs = self._fft_to_buckets(freq, PSD, self.buckets)
-            
-            # Log of frequencies
-            lfb = np.log(fb)
-            if all([f == 0 for f in fb]):
-                lfb = [-1]*len(fb) 
-            lfb = np.expand_dims(lfb, axis=0)
-            
-            roll_delta, fifo_long, fifo_short = self.get_roll_delta(fifo_long, fifo_short, lfb)
-            
-            # Append current rolling delta
-            all_rd = np.append(all_rd, np.expand_dims(np.array(roll_delta), 0), axis=0)
-            
-            if cnt == 0:
-                all_lfb = lfb.copy()
-            else:
-                all_lfb = np.append(all_lfb, lfb, axis=0)
-            
+        while True:
             # Read next frame
-            data = self.wf.readframes(self.CHUNK)
-            if len(data) < self.CHUNK:
+            data = wf.readframes(CHUNK)
+            pbar.update(CHUNK)
+            if len(data) < CHUNK:
                 break
-        
-            data_int = np.frombuffer(data, dtype=np.int32) # Read bytes to int
-            data_int = np.resize(data_int, self.CHUNK) # Handle final CHUNK where size might be less than CHUNK size
 
-            cnt += 1    
-        return all_lfb, all_rd
-        
-    def _get_fft(self, data_int):
-        n = len(data_int) 
-        fhat = np.fft.fft(data_int, n)
-        PSD = np.abs(fhat * np.conj(fhat) / n) # Power Spectral Density
-        freq = (self.RATE / n) * np.arange(n)
-        
-        return freq, PSD
+            data_int = np.frombuffer(data, dtype=np.int32)  # Read bytes to int
+            data_int = np.resize(data_int, (1, CHUNK))  # Handle final CHUNK where size might be less than CHUNK size
 
-    def _fft_to_buckets(self, freq, PSD, buckets):
-        """
-        Takes the current CHUNK's frequency response and breaks each frequency in to buckets
-        - freq: audio files CHUNK of data amplitudes converted in to frequencies
-        - PSD: power spectral density of each frequency
-        - buckets: a list of frequencies where each freq in the list will create a range between that freq and the previous
-        """
-        idxs = sorted({np.abs(freq - i).argmin() for i in buckets}) # Get indices of freq from closest frequencies in buckets
-        
-        # Average PSD values in between frequencies defined by buckets
-        freq_bucket = [PSD[idxs[i]:idxs[i+1]].mean() for i in range(len(idxs)-1)]  + [PSD[idxs[-1]:].mean()] 
-        
-        return freq_bucket, idxs
+            if cnt == 0:
+                all_data = data_int.copy()
+            else:
+                all_data = np.append(all_data, data_int, axis=0)
 
-    def init_fifo_from_preprocessed_data(self, data, FIFO_LEN):
-        fifo = np.zeros((FIFO_LEN, len(self.buckets)))
-        for i in range(FIFO_LEN):
-            lfb = data[i]
+            cnt += 1
 
-            fifo = np.roll(fifo, 1, axis=0)
-            fifo[0, :] = lfb
-        return fifo
-    
+    if save:
+        audio_pkl_filename = file.split('.')[0] + '.pkl'
+        pickle.dump({'data': all_data, 'chunk': CHUNK, 'rate': RATE}, open(audio_pkl_filename, "wb"))
 
+    return all_data, CHUNK, RATE
 
+def get_split_times(data, rate, amp_thresh, reset_delta=125, chunk=1024):
+    '''
+    reset_delta [ms]: length of time (in ms) to wait before a new split can occur
+    '''
+
+    reset_delta_frames = int(reset_delta / ((chunk / rate) * 1000)) + 2
+
+    abv_thresh = [np.max(d) > amp_thresh and is_increasing(d) for d in data]
+    times = []
+
+    i = 0
+    while True:
+        if abv_thresh[i] == True:
+            times += [i * chunk / rate]
+            i += reset_delta_frames
+        else:
+            i += 1
+
+        if i >= len(abv_thresh):
+            # Add final time
+            times += [len(data) * chunk / rate]
+            break
+
+    return times
+
+def moving_average(x, width=10):
+    return np.convolve(x, np.ones(width), 'valid') / width
+
+def is_increasing(data):
+    data = moving_average(data, width=400)
+    return np.mean(np.diff(data, n=2)) > 0
