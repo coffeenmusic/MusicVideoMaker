@@ -19,6 +19,9 @@ TODO:
 
 VID_DIR = os.path.join('Media', 'Videos') # Default video directory
 EXPORT_FILENAME = 'music_video.mp4'
+SHUFFLE_CNT = 0
+SHUFFLE_CHUNK_SIZE = 20
+CHECK_FREQ = 1
 USE_DECORD = False
 amp_thresh = 1000000000
 #amp_thresh = 150000000
@@ -57,12 +60,18 @@ while True:
         amp_thresh = int(args[i])
     elif args[i] == '-hs':
         USE_DECORD = True
+    elif args[i] == '-shuffle':
+        i += 1
+        SHUFFLE_CNT = int(args[i])
+    elif args[i] == '-freq':
+        i += 1
+        CHECK_FREQ = float(args[i])
 
     i += 1
     if i >= len(args):
         break
 
-VID_FILES = [os.path.join(VID_DIR, f) for f in os.listdir(VID_DIR) if f.split('.')[-1].lower() in ['mp4', 'avi', 'mkv']]
+VID_FILES = [os.path.join(VID_DIR, f) for f in os.listdir(VID_DIR) if f.split('.')[-1].lower() in ['mp4', 'avi', 'mkv', 'm4v']]
 
 print('Video Directory: ', VID_DIR)
 print('Reference Audio File: ', AUD_FILE)
@@ -266,51 +275,128 @@ def get_split_times(data, reset_delta=125, chunk=CHUNK, rate=RATE):
 """
 BUILD MUSIC VIDEO FUNCTIONS
 """
-def build_mv_clips(times):
-    with tqdm(total=len(times)) as pbar:
-        cut_lens = np.diff([0] + times)
+# def build_mv_clips(times):
+#     with tqdm(total=len(times)) as pbar:
+#         cut_lens = np.diff([0] + times)
+#
+#         clips = []
+#         mv_clips = []
+#
+#         split_func = split_video_decord if USE_DECORD else split_video
+#
+#         cut_len = cut_lens[0]
+#         for video in VID_FILES:
+#             print(video)
+#             for clip in split_func(video):
+#                 clip_len = clip.duration
+#                 if clip_len > cut_len:
+#                     mv_clips += [clip.subclip(0, cut_len)]
+#                     if len(mv_clips) < len(cut_lens):
+#                         cut_len = cut_lens[len(mv_clips)]
+#                         pbar.update(1)
+#                     else:
+#                         return mv_clips
+#         return mv_clips
 
-        clips = []
+def build_mv_clips(times, clip_generator):
+
+    with tqdm(total=len(times)) as pbar: # Create progress bar
+
+        cut_lens = np.diff([0] + times) # Get the time delta between times (audio delta to next beat [s])
+
         mv_clips = []
 
-        split_func = split_video_decord if USE_DECORD else split_video
-
         cut_len = cut_lens[0]
-        for video in VID_FILES:
-            print(video)
-            for clip in split_func(video):
-                clip_len = clip.duration
-                if clip_len > cut_len:
-                    mv_clips += [clip.subclip(0, cut_len)]
-                    if len(mv_clips) < len(cut_lens):
-                        cut_len = cut_lens[len(mv_clips)]
-                        pbar.update(1)
-                    else:
-                        return mv_clips
+
+        # Generate subclips from videos in video directory by splitting video on scene changes
+        # Iterate through each of these clips
+        for clip in clip_generator:
+            clip_len = clip.duration
+
+            # Video clip must be longer than audio split time so clip can be trimmed down to match audio len
+            if clip_len > cut_len:
+                mv_clips += [clip.subclip(0, cut_len)]
+
+                # Number of clips is still less than needed to finish music video
+                if len(mv_clips) < len(cut_lens):
+                    cut_len = cut_lens[len(mv_clips)]
+                    pbar.update(1) # Update progress bar
+                else: # All clips created to match audio beats
+                    return mv_clips
+
         return mv_clips
+
+def get_clips(single=True, chunk_size=10):
+    clips = []
+    for video in tqdm(VID_FILES):
+        print(f'Processing video file: {video}')
+        for clip in split_video(video, check_freq=CHECK_FREQ):
+            if single:
+                yield clip
+            else:
+                clips += [clip]
+
+    if not(single):
+        print(f'{len(clips)} clips collected.')
+
+        while True:
+
+            new_len = (len(clips) // chunk_size) * chunk_size
+            clips = clips[:new_len]
+
+            # Create list of indices that are shuffled in chunks
+            shuffle_idxs = np.arange(new_len) # Create index array
+            shuffle_idxs = shuffle_idxs.reshape(-1, chunk_size) # Reshape for shuffling in chunks
+            np.random.shuffle(shuffle_idxs)
+            shuffle_idxs = shuffle_idxs.flatten()
+
+            clips = [clips[idx] for idx in shuffle_idxs] # Shuffle clips with indices
+
+            for clip in clips:
+                yield clip
+
+def get_unique_export_name(requested_name):
+    new_name = requested_name
+    i = 1
+    # Append unique id suffix to filename if file already exists
+    name = requested_name.split('.')[0]
+    ext = requested_name.split('.')[-1]
+    while os.path.exists(new_name):
+        i += 1
+        new_name = name + str(i) + '.' + ext
+    return new_name
 
 print('Getting split times from audio file...')
 times = get_split_times(audio_data)
 
 print('Building music video. This will take a long time...')
-mv_clips = build_mv_clips(times)
 
-print('Build complete. Exporting video...')
-music_video = concatenate_videoclips(mv_clips)
+shuffle = True
+if SHUFFLE_CNT == 0:
+    shuffle = False
+    SHUFFLE_CNT = 1
+else:
+    print(f'{SHUFFLE_CNT} music videos to be created with same clips shuffled on each iteration.')
 
-music_audio = AudioFileClip(FINAL_AUDIO).subclip(0, music_video.duration)
+clip_generator = get_clips(single=not(shuffle), chunk_size=SHUFFLE_CHUNK_SIZE)
 
-final_music_video = music_video.set_audio(music_audio)
+for export_cnt in range(SHUFFLE_CNT):
+    mv_clips = build_mv_clips(times, clip_generator)
 
-i = 1
-# Append unique id suffix to filename if file already exists
-name = EXPORT_FILENAME.split('.')[0]
-ext = EXPORT_FILENAME.split('.')[-1]
-while os.path.exists(EXPORT_FILENAME):
-    i += 1
-    EXPORT_FILENAME = name + str(i) + '.' + ext
+    assert len(mv_clips) > 0, "Error no clips created. Clip lens may be too short for audio splice times."
 
-print(f'Exporting music video file {EXPORT_FILENAME}...')
-final_music_video.write_videofile(EXPORT_FILENAME)
+    print(f'Build complete. Cut {len(mv_clips)} clips to match audio slices. Exporting video...')
+    music_video = concatenate_videoclips(mv_clips)
+
+    music_audio = AudioFileClip(FINAL_AUDIO).subclip(0, music_video.duration)
+
+    final_music_video = music_video.set_audio(music_audio)
+
+    mv_name = get_unique_export_name(EXPORT_FILENAME) # Appends unique index to export name
+
+    print(f'Exporting music video file {mv_name}...')
+    final_music_video.write_videofile(mv_name)
+
+    print(f'Complete {export_cnt + 1} of {SHUFFLE_CNT} complete.')
 
 print('Done. Total processing time took {} minutes.'.format((time.time() - start_time)/60))
