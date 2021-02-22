@@ -4,8 +4,11 @@ from decord import cpu, gpu
 import cv2
 import numpy as np
 from tqdm import tqdm
+import os
 
-def scene_changed(prev_frame, frame, delta_thresh=30):
+VIDEO_EXTENSIONS = ['mp4', 'avi', 'mkv', 'm4v']
+
+def scene_changed(prev_frame, frame, delta_thresh=10):
     delta = abs(np.mean(prev_frame) - np.mean(frame))
 
     if delta > delta_thresh:
@@ -42,7 +45,7 @@ def split_video_decord(vid_filename, check_freq=1, print_split_frames=False, pri
                 print_frame(np.append(prev_frame, frame, axis=1))
 
             if i > 0:  # Skip first frame
-                if start_time != stop_time and scene_changed(prev_frame, frame, delta_thresh=20):
+                if start_time != stop_time and scene_changed(prev_frame, frame, delta_thresh=10):
                     if print_split_frames:
                         print_frame(prev_frame)
 
@@ -87,7 +90,7 @@ def split_video(vid_filename, check_freq=1, print_split_frames=False, print_cmp_
                 print_frame(np.append(prev_frame, frame, axis=1))
 
             if i > 0:  # Skip first frame
-                if start_time != stop_time and scene_changed(prev_frame, frame, delta_thresh=20):
+                if start_time != stop_time and scene_changed(prev_frame, frame, delta_thresh=10):
                     if print_split_frames:
                         print_frame(prev_frame)
 
@@ -100,3 +103,75 @@ def split_video(vid_filename, check_freq=1, print_split_frames=False, print_cmp_
             prev_frame = frame.copy()
             stop_time = time
     return clips
+
+def export_clips(clip_generator, path=None):
+    if path == None:
+        path = os.path.join('Media', 'Clips')
+
+    if not (os.path.exists(path)):
+        os.mkdir(path)
+
+    for clip in clip_generator:
+        files = os.listdir(path)
+        ids = [f.split('.')[0] for f in files if f.split('.')[-1] in VIDEO_EXTENSIONS and f.split('.')[0].isdigit()]
+        largest_id = max(ids)
+
+        idx = largest_id + 1
+        clip_name = str(idx) + '.mp4'
+        while os.path.exists(os.path.join(path, clip_name)):
+            idx += 1
+            clip_name = str(idx) + '.mp4'
+
+        clip.write_videofile(os.path.join(path, clip_name), verbose=False)
+
+def shuffle_clips(clips, chunk_size=20):
+    new_len = (len(clips) // chunk_size) * chunk_size
+    clips = clips[:new_len]
+
+    # Create list of indices that are shuffled in chunks
+    shuffle_idxs = np.arange(new_len)  # Create index array
+    shuffle_idxs = shuffle_idxs.reshape(-1, chunk_size)  # Reshape for shuffling in chunks
+    np.random.shuffle(shuffle_idxs)
+    shuffle_idxs = shuffle_idxs.flatten()
+
+    return [clips[i] for i in shuffle_idxs]
+
+def get_clips(video_path_list, single=True, chunk_size=20, frame_check_freq=1):
+    """
+    video_path_list - a list of paths to all videos being iterated on
+    single - run through clips one time without shuffling
+    chunk_size - number of clips to keep unshuffled when shuffling all clips
+    frame_check_freq - how often in seconds to compare frames for scene change
+    """
+
+    clips = []
+    for video_cnt, video in enumerate(video_path_list):
+        print(f'Processing video file {video_cnt + 1}/{len(video_path_list)}: {video}')
+        for clip in split_video(video, check_freq=frame_check_freq):
+            if single:
+                yield clip
+            else:
+                clips += [clip]
+
+    if not(single):
+        print(f'{len(clips)} clips collected.')
+
+        while True:
+            clips = shuffle_clips(clips, chunk_size=chunk_size)
+
+            for clip in clips:
+                yield clip
+
+def get_clips_from_dir(path=None, shuffle=False, chunk_size=20):
+    if path == None:
+        path = os.path.join('Media', 'Clips')
+
+    clips = [VideoFileClip(os.path.join(path, d)) for d in os.listdir(path) if d.split('.')[-1] in VIDEO_EXTENSIONS]
+
+    if shuffle:
+        while True:
+            clips = shuffle_clips(clips, chunk_size=chunk_size)
+            for clip in clips:
+                yield clip
+    else:
+        return clips

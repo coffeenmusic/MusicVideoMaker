@@ -1,7 +1,7 @@
 from audio import get_audio_data, get_saved_audio, get_split_times, is_increasing
-from video import split_video
+from video import split_video, get_clips, export_clips, VIDEO_EXTENSIONS
 from other import get_unique_filename
-from music_video import get_clips, build_mv_clips
+from music_video import build_mv_clips
 from moviepy.editor import VideoFileClip, concatenate_videoclips, AudioFileClip
 from decord import VideoReader
 from decord import cpu, gpu
@@ -26,8 +26,9 @@ SHUFFLE_CNT = 0
 SHUFFLE_CHUNK_SIZE = 20
 CHECK_FREQ = 1
 USE_DECORD = False
+EXPORT_CLIPS = False
+USE_CLIP_DIR = False
 amp_thresh = 1000000000
-#amp_thresh = 150000000
 args = sys.argv
 
 # Print Help
@@ -69,12 +70,16 @@ while True:
     elif args[i] == '-freq':
         i += 1
         CHECK_FREQ = float(args[i])
+    elif args[i] == '-export_clips':
+        EXPORT_CLIPS = True
+    elif args[i] == '-use_clip_dir':
+        USE_CLIP_DIR = True
 
     i += 1
     if i >= len(args):
         break
 
-VID_FILES = [os.path.join(VID_DIR, f) for f in os.listdir(VID_DIR) if f.split('.')[-1].lower() in ['mp4', 'avi', 'mkv', 'm4v']]
+VID_FILES = [os.path.join(VID_DIR, f) for f in os.listdir(VID_DIR) if f.split('.')[-1].lower() in VIDEO_EXTENSIONS]
 
 print('Video Directory: ', VID_DIR)
 print('Reference Audio File: ', AUD_FILE)
@@ -104,8 +109,16 @@ else:
 
 clip_generator = get_clips(VID_FILES, single=not(shuffle), chunk_size=SHUFFLE_CHUNK_SIZE, frame_check_freq=CHECK_FREQ)
 
+if EXPORT_CLIPS:
+    export_clips(clip_generator)
+    cont = input('Clips exported. Would you like to continue [y/n]?')
+    if cont.lower() in ['y', 'yes']:
+        pass
+    else:
+        exit(0)
+
 for export_cnt in range(SHUFFLE_CNT):
-    mv_clips = build_mv_clips(times, clip_generator)
+    mv_clips = build_mv_clips(times, clip_generator, use_clip_dir=USE_CLIP_DIR, shuffle=shuffle, chunk_size=SHUFFLE_CHUNK_SIZE)
 
     assert len(mv_clips) > 0, "Error no clips created. Clip lens may be too short for audio splice times."
 

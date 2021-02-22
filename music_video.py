@@ -1,44 +1,10 @@
-from video import split_video, split_video_decord
+from moviepy.editor import VideoFileClip
+from video import split_video, split_video_decord, get_clips_from_dir, VIDEO_EXTENSIONS
 import numpy as np
 from tqdm import tqdm
+import os
 
-def get_clips(video_path_list, single=True, chunk_size=20, frame_check_freq=1):
-    """
-    video_path_list - a list of paths to all videos being iterated on
-    single - run through clips one time without shuffling
-    chunk_size - number of clips to keep unshuffled when shuffling all clips
-    frame_check_freq - how often in seconds to compare frames for scene change
-    """
-
-    clips = []
-    for video_cnt, video in enumerate(video_path_list):
-        print(f'Processing video file {video_cnt}/{len(video_path_list)}: {video}')
-        for clip in split_video(video, check_freq=frame_check_freq):
-            if single:
-                yield clip
-            else:
-                clips += [clip]
-
-    if not(single):
-        print(f'{len(clips)} clips collected.')
-
-        while True:
-
-            new_len = (len(clips) // chunk_size) * chunk_size
-            clips = clips[:new_len]
-
-            # Create list of indices that are shuffled in chunks
-            shuffle_idxs = np.arange(new_len) # Create index array
-            shuffle_idxs = shuffle_idxs.reshape(-1, chunk_size) # Reshape for shuffling in chunks
-            np.random.shuffle(shuffle_idxs)
-            shuffle_idxs = shuffle_idxs.flatten()
-
-            clips = [clips[idx] for idx in shuffle_idxs] # Shuffle clips with indices
-
-            for clip in clips:
-                yield clip
-
-def build_mv_clips(times, clip_generator):
+def build_mv_clips(times, clip_generator, use_clip_dir=False, shuffle=False, chunk_size=20):
 
     with tqdm(total=len(times)) as pbar: # Create progress bar
 
@@ -47,6 +13,9 @@ def build_mv_clips(times, clip_generator):
         mv_clips = []
 
         cut_len = cut_lens[0]
+
+        if use_clip_dir:
+            clip_generator = get_clips_from_dir(shuffle=shuffle, chunk_size=chunk_size)
 
         # Generate subclips from videos in video directory by splitting video on scene changes
         # Iterate through each of these clips
