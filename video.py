@@ -15,12 +15,10 @@ def scene_changed(prev_frame, frame, delta_thresh=10):
         return True
     return False
 
-def split_video_decord(vid_filename, check_freq=1, print_split_frames=False, print_cmp_frames=False):
+def split_video_decord(vid_filename, check_freq=1, split_thresh=10):
     """
-    print_split_frames - for troubleshooting, may remove later
-    print_cmp_frames - for troubleshooting, may remove later
-    max_clips - set above 0 to stop early when len(clips) greater than max_clips
     check_freq [seconds] - how often to compare two frames for scene change
+    split_thresh - mean difference in pixel values allowed before triggering split
     """
     with open(vid_filename, 'rb') as f:
         video = VideoFileClip(vid_filename)
@@ -28,7 +26,6 @@ def split_video_decord(vid_filename, check_freq=1, print_split_frames=False, pri
 
         clip_cnt = 0  # Number of clips created from video
         start_time = 0  # time in seconds from video where current clip starts
-        clips = []  # list of subclips of video file created by video split
 
         frame_freq = int(video.reader.fps * check_freq)
         print(f'Compare frames every {check_freq} seconds. This equals {frame_freq} frames.')
@@ -41,14 +38,8 @@ def split_video_decord(vid_filename, check_freq=1, print_split_frames=False, pri
         for i in range(0, total_frames, frame_freq):
             frame = vr[i].asnumpy()
 
-            if print_cmp_frames:
-                print_frame(np.append(prev_frame, frame, axis=1))
-
             if i > 0:  # Skip first frame
-                if start_time != stop_time and scene_changed(prev_frame, frame, delta_thresh=10):
-                    if print_split_frames:
-                        print_frame(prev_frame)
-
+                if start_time != stop_time and scene_changed(prev_frame, frame, delta_thresh=split_thresh):
                     clip = video.subclip(start_time, stop_time)
 
                     start_time = i / video.reader.fps
@@ -66,16 +57,13 @@ def split_video_decord(vid_filename, check_freq=1, print_split_frames=False, pri
             prev_frame = frame
             stop_time = i / video.reader.fps
 
-def split_video(vid_filename, check_freq=1, print_split_frames=False, print_cmp_frames=False):
+def split_video(vid_filename, check_freq=1, split_thresh=10):
     """
-    print_split_frames - for troubleshooting, may remove later
-    print_cmp_frames - for troubleshooting, may remove later
-    max_clips - set above 0 to stop early when len(clips) greater than max_clips
     check_freq [seconds] - how often to compare two frames for scene change
+    split_thresh - mean difference in pixel values allowed before triggering split
     """
     clip_cnt = 0  # Number of clips created from video
     start_time = 0  # time in seconds from video where current clip starts
-    clips = []  # list of subclips of video file created by video split
     video = VideoFileClip(vid_filename)
 
     frame_freq = int(video.reader.fps * check_freq)
@@ -86,14 +74,8 @@ def split_video(vid_filename, check_freq=1, print_split_frames=False, print_cmp_
     for i, (time, frame) in tqdm(enumerate(video.iter_frames(with_times=True))):
 
         if i % frame_freq == 0:
-            if print_cmp_frames:
-                print_frame(np.append(prev_frame, frame, axis=1))
-
             if i > 0:  # Skip first frame
-                if start_time != stop_time and scene_changed(prev_frame, frame, delta_thresh=10):
-                    if print_split_frames:
-                        print_frame(prev_frame)
-
+                if start_time != stop_time and scene_changed(prev_frame, frame, delta_thresh=split_thresh):
                     yield video.subclip(start_time, stop_time)
 
                     start_time = time
@@ -102,7 +84,6 @@ def split_video(vid_filename, check_freq=1, print_split_frames=False, print_cmp_
 
             prev_frame = frame.copy()
             stop_time = time
-    return clips
 
 def export_clips(clip_generator, path=None):
     if path == None:
@@ -113,8 +94,12 @@ def export_clips(clip_generator, path=None):
 
     for clip in clip_generator:
         files = os.listdir(path)
-        ids = [f.split('.')[0] for f in files if f.split('.')[-1] in VIDEO_EXTENSIONS and f.split('.')[0].isdigit()]
-        largest_id = max(ids)
+
+        largest_id = 0
+        ids = [int(f.split('.')[0]) for f in files if f.split('.')[-1] in VIDEO_EXTENSIONS and f.split('.')[0].isdigit()]
+        if len(ids) > 0:
+            largest_id = max(ids)
+
 
         idx = largest_id + 1
         clip_name = str(idx) + '.mp4'
@@ -136,18 +121,19 @@ def shuffle_clips(clips, chunk_size=20):
 
     return [clips[i] for i in shuffle_idxs]
 
-def get_clips(video_path_list, single=True, chunk_size=20, frame_check_freq=1):
+def get_clips(video_path_list, single=True, chunk_size=20, frame_check_freq=1, use_decord=False):
     """
     video_path_list - a list of paths to all videos being iterated on
     single - run through clips one time without shuffling
     chunk_size - number of clips to keep unshuffled when shuffling all clips
     frame_check_freq - how often in seconds to compare frames for scene change
     """
-
     clips = []
     for video_cnt, video in enumerate(video_path_list):
+        split_generator = split_video_decord(video, check_freq=frame_check_freq) if use_decord else split_video(video, check_freq=frame_check_freq)
+
         print(f'Processing video file {video_cnt + 1}/{len(video_path_list)}: {video}')
-        for clip in split_video(video, check_freq=frame_check_freq):
+        for clip in split_generator:
             if single:
                 yield clip
             else:
@@ -157,9 +143,9 @@ def get_clips(video_path_list, single=True, chunk_size=20, frame_check_freq=1):
         print(f'{len(clips)} clips collected.')
 
         while True:
-            clips = shuffle_clips(clips, chunk_size=chunk_size)
+            shuffled = shuffle_clips(clips, chunk_size=chunk_size)
 
-            for clip in clips:
+            for clip in shuffled:
                 yield clip
 
 def get_clips_from_dir(path=None, shuffle=False, chunk_size=20):

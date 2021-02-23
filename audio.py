@@ -9,8 +9,6 @@ def open_stream(audio_file, CHUNK_MUL=1):
     CHUNK = 1024 * CHUNK_MUL
 
     wf = wave.open(audio_file, 'rb')
-    RATE = wf.getframerate()
-    FPS = RATE / CHUNK
 
     p = pyaudio.PyAudio()
 
@@ -19,7 +17,7 @@ def open_stream(audio_file, CHUNK_MUL=1):
                     rate=RATE,
                     output=True)
 
-    return stream, wf, CHUNK, RATE
+    return stream, wf, CHUNK
 
 def get_saved_audio(file):
     audio_pkl_filename = file.split('.')[0] + '.pkl'
@@ -33,7 +31,8 @@ def get_saved_audio(file):
         return audio_data, CHUNK, RATE
 
 def get_audio_data(file, save=True):
-    stream, wf, CHUNK, RATE = open_stream(file)
+    stream, wf, CHUNK = open_stream(file)
+    RATE = wf.getframerate()
 
     with tqdm(total=wf.getnframes()) as pbar:
 

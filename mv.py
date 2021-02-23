@@ -62,7 +62,7 @@ while True:
     elif args[i] == '-t':
         i += 1
         amp_thresh = int(args[i])
-    elif args[i] == '-hs':
+    elif args[i] == '-use_decord':
         USE_DECORD = True
     elif args[i] == '-shuffle':
         i += 1
@@ -107,7 +107,7 @@ if SHUFFLE_CNT == 0:
 else:
     print(f'{SHUFFLE_CNT} music videos to be created with same clips shuffled on each iteration.')
 
-clip_generator = get_clips(VID_FILES, single=not(shuffle), chunk_size=SHUFFLE_CHUNK_SIZE, frame_check_freq=CHECK_FREQ)
+clip_generator = get_clips(VID_FILES, single=not(shuffle), chunk_size=SHUFFLE_CHUNK_SIZE, frame_check_freq=CHECK_FREQ, use_decord=USE_DECORD)
 
 if EXPORT_CLIPS:
     export_clips(clip_generator)

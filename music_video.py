@@ -1,5 +1,5 @@
 from moviepy.editor import VideoFileClip
-from video import split_video, split_video_decord, get_clips_from_dir, VIDEO_EXTENSIONS
+from video import get_clips_from_dir
 import numpy as np
 from tqdm import tqdm
 import os
