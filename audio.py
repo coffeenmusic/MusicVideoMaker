@@ -14,7 +14,7 @@ def open_stream(audio_file, CHUNK_MUL=1):
 
     stream = p.open(format=p.get_format_from_width(wf.getsampwidth()),
                     channels=wf.getnchannels(),
-                    rate=RATE,
+                    rate=wf.getframerate(),
                     output=True)
 
     return stream, wf, CHUNK

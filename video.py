@@ -1,12 +1,14 @@
-from moviepy.editor import VideoFileClip
+from moviepy.editor import VideoFileClip, ImageClip
 from decord import VideoReader
 from decord import cpu, gpu
 import cv2
 import numpy as np
 from tqdm import tqdm
 import os
+import psutil
 
 VIDEO_EXTENSIONS = ['mp4', 'avi', 'mkv', 'm4v']
+IMG_EXTENSIONS = ['jpg', 'jpeg'] #, 'png', 'bmp', 'gif', 'tif'
 
 def scene_changed(prev_frame, frame, delta_thresh=10):
     delta = abs(np.mean(prev_frame) - np.mean(frame))
@@ -109,9 +111,16 @@ def export_clips(clip_generator, path=None):
 
         clip.write_videofile(os.path.join(path, clip_name), verbose=False)
 
-def shuffle_clips(clips, chunk_size=20):
-    new_len = (len(clips) // chunk_size) * chunk_size
-    clips = clips[:new_len]
+def shuffle_in_chunks(in_list, chunk_size=20):
+    """
+    Shuffle a list but group together list items close to eachother in chunks
+        in_list - list to be shuffled
+        chunk_size - length of clips grouped together that aren't shuffled (Example: [3,4,1,2,5,6] chunk=2
+    """
+    chunk_size = int(len(in_list) / 2) if chunk_size > len(in_list) / 2 else chunk_size # Allow minimum shuffle if list too small or chunk too large
+
+    new_len = (len(in_list) // chunk_size) * chunk_size
+    in_list = in_list[:new_len]
 
     # Create list of indices that are shuffled in chunks
     shuffle_idxs = np.arange(new_len)  # Create index array
@@ -119,45 +128,99 @@ def shuffle_clips(clips, chunk_size=20):
     np.random.shuffle(shuffle_idxs)
     shuffle_idxs = shuffle_idxs.flatten()
 
-    return [clips[i] for i in shuffle_idxs]
+    return [in_list[i] for i in shuffle_idxs]
 
-def get_clips(video_path_list, single=True, chunk_size=20, frame_check_freq=1, use_decord=False):
+def get_clips(video_path_list, use_once=True, shuffle=False, chunk_size=10, frame_check_freq=1, use_decord=False, max_clips=100):
     """
-    video_path_list - a list of paths to all videos being iterated on
-    single - run through clips one time without shuffling
-    chunk_size - number of clips to keep unshuffled when shuffling all clips
-    frame_check_freq - how often in seconds to compare frames for scene change
+    Iterate video frames, split at scene changes, and create clips to yield back
+        video_path_list - a list of paths to all videos being iterated on
+        use_once - run through clips one time without shuffling
+        shuffle - shuffle clips if True else use in order they are listed
+        chunk_size - number of clips to keep unshuffled when shuffling all clips
+        frame_check_freq - how often in seconds to compare frames for scene change
+        use decord - decord is faster than moviepy, but seems to be more buggy and doesn't alway work
+        max_clips - creates list of clips with this size so those clips can be shuffled. Otherwise shuffle wouldn't be possible
     """
-    clips = []
-    for video_cnt, video in enumerate(video_path_list):
-        split_generator = split_video_decord(video, check_freq=frame_check_freq) if use_decord else split_video(video, check_freq=frame_check_freq)
+    max_clips = len(video_path_list) if len(video_path_list) < max_clips else max_clips
 
-        print(f'Processing video file {video_cnt + 1}/{len(video_path_list)}: {video}')
-        for clip in split_generator:
-            if single:
-                yield clip
-            else:
-                clips += [clip]
+    while True:
+        for video_cnt, path in enumerate(video_path_list):
+            split_generator = split_video_decord(path, check_freq=frame_check_freq) if use_decord else split_video(path, check_freq=frame_check_freq)
 
-    if not(single):
-        print(f'{len(clips)} clips collected.')
+            print(f'Processing video file {video_cnt + 1}/{len(video_path_list)}: {path}')
+            clips_available = True
+            while clips_available:
+                # Collect clips in chunks of max_clips
+                for _ in range(max_clips):
+                    try:
+                        clip = next(split_generator)
+                    except:
+                        clips_available = False
 
-        while True:
-            shuffled = shuffle_clips(clips, chunk_size=chunk_size)
+                    clips += [clip]
 
-            for clip in shuffled:
-                yield clip
+                clips = shuffle_in_chunks(clips, chunk_size=chunk_size) if shuffle else clips
+                for c in clips:
+                    yield c
 
-def get_clips_from_dir(path=None, shuffle=False, chunk_size=20):
+                clips = []
+
+        if use_once:
+            break
+
+def get_clips_from_dir(path=None, use_once=False, shuffle=False, chunk_size=20):
+    """
+    Get clips from a clip directory:
+        path - path to the clip dir that contains video clips
+        use_once - run through clips one time without reusing clips
+        shuffle - shuffle clips if True else use in order they are listed
+        chunk_size - number of clips to keep unshuffled when shuffling all clips
+    """
     if path == None:
         path = os.path.join('Media', 'Clips')
 
-    clips = [VideoFileClip(os.path.join(path, d)) for d in os.listdir(path) if d.split('.')[-1] in VIDEO_EXTENSIONS]
+    path_list = [os.path.join(path, d) for d in os.listdir(path) if d.split('.')[-1] in VIDEO_EXTENSIONS]
 
-    if shuffle:
-        while True:
-            clips = shuffle_clips(clips, chunk_size=chunk_size)
-            for clip in clips:
-                yield clip
-    else:
-        return clips
+    while True:
+        clip_paths = shuffle_in_chunks(path_list, chunk_size=chunk_size) if shuffle else path_list
+        for p in clip_paths:
+            yield VideoFileClip(p)
+
+        if use_once:
+            break
+
+def get_clips_from_img_dir(path=None, use_once=False, shuffle=False, chunk_size=20, height=1080):
+    """
+    Get images from an image directory, convert them to video clips and yield back:
+        path - path to the image dir that contains images
+        use_once - run through images one time without reusing images
+        shuffle - shuffle images if True else use in order they are listed
+        chunk_size - number of images to keep unshuffled when shuffling all images
+        height - resize all images with this height. Ratio for each individual image should remain the same
+    """
+
+    if path == None:
+        if os.path.exists(os.path.join('Media', 'Images')):
+            path = os.path.join('Media', 'Images')
+        elif os.path.exists(os.path.join('Media', 'Videos')):
+            path = os.path.join('Media', 'Videos')
+        else:
+            path = ''
+
+    assert os.path.exists(path), "Image directory not found."
+
+    path_list = [os.path.join(path, d) for d in os.listdir(path) if d.split('.')[-1] in IMG_EXTENSIONS]
+
+    while True:
+        img_paths = shuffle_in_chunks(path_list, chunk_size=chunk_size) if shuffle else path_list
+        for p in img_paths:
+            #yield ImageClip(p).set_duration(2).set_pos(("center", "center")).resize(height=height)
+            try:
+                img = ImageClip(p).set_pos(("center", "center")).resize(height=height)
+            except:
+                continue
+
+            yield img
+
+        if use_once:
+            break
