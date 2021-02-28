@@ -8,7 +8,7 @@ def build_mv_clips(times, clip_generator, use_clip_dir=False, use_img_dir=False,
 
     with tqdm(total=len(times)) as pbar: # Create progress bar
 
-        cut_lens = np.diff([0] + times) # Get the time delta between times (audio delta to next beat [s])
+        cut_lens = np.diff(times) # Get the time delta between times (audio delta to next beat [s])
 
         mv_clips = []
 

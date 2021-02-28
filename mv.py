@@ -1,5 +1,5 @@
 from audio import get_audio_data, get_saved_audio, get_split_times, is_increasing
-from video import split_video, get_clips, export_clips, VIDEO_EXTENSIONS
+from video import get_clips, export_clips, VIDEO_EXTENSIONS
 from other import get_unique_filename
 from music_video import build_mv_clips
 from moviepy.editor import VideoFileClip, concatenate_videoclips, AudioFileClip
