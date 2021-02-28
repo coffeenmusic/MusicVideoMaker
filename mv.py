@@ -30,6 +30,8 @@ USE_DECORD = False
 EXPORT_CLIPS = False
 USE_CLIP_DIR = False
 USE_IMG_DIR = False
+START_TIME = 0
+STOP_TIME = 0
 amp_thresh = 1000000000
 args = sys.argv
 
@@ -72,6 +74,12 @@ while True:
     elif args[i] == '-freq':
         i += 1
         CHECK_FREQ = float(args[i])
+    elif args[i] == '-start':
+        i += 1
+        START_TIME = float(args[i])
+    elif args[i] == '-stop':
+        i += 1
+        STOP_TIME = float(args[i])
     elif args[i] == '-export_clips':
         EXPORT_CLIPS = True
     elif args[i] == '-use_clip_dir':
@@ -95,7 +103,7 @@ print('Reference Audio File: ', AUD_FILE)
 print('Song Used in Final Music Video: ', FINAL_AUDIO)
 print('Export Filename: ', EXPORT_FILENAME)
 
-start_time = time.time()
+start_timer = time.time()
 
 saved_data = get_saved_audio(AUD_FILE)
 if saved_data:
@@ -103,8 +111,10 @@ if saved_data:
 else:
     audio_data, CHUNK, RATE = get_audio_data(AUD_FILE)
 
+STOP_TIME = len(audio_data)*(CHUNK/RATE) if STOP_TIME == 0 else STOP_TIME
+print(f'Audio to be processed between {START_TIME}s & {STOP_TIME}s')
 print('Getting split times from audio file...')
-times = get_split_times(audio_data, RATE, amp_thresh, chunk=CHUNK)
+times = get_split_times(audio_data, RATE, amp_thresh, chunk=CHUNK, start_time=START_TIME, stop_time=STOP_TIME)
 print(f'{len(times)} audio slices created.')
 
 print('Building music video. This will take a long time...')
@@ -134,7 +144,8 @@ for export_cnt in range(SHUFFLE_CNT):
     print(f'Build complete. Cut {len(mv_clips)} clips to match audio slices. Exporting video...')
     music_video = concatenate_videoclips(mv_clips, method='compose')
 
-    music_audio = AudioFileClip(FINAL_AUDIO).subclip(0, music_video.duration)
+    STOP_TIME = times[-1] if music_video.duration < STOP_TIME or STOP_TIME == 0 else STOP_TIME
+    music_audio = AudioFileClip(FINAL_AUDIO).subclip(START_TIME, STOP_TIME)
 
     final_music_video = music_video.set_audio(music_audio)
 
@@ -148,4 +159,4 @@ for export_cnt in range(SHUFFLE_CNT):
 
     print(f'Complete {export_cnt + 1} of {SHUFFLE_CNT} complete.')
 
-print('Done. Total processing time took {} minutes.'.format((time.time() - start_time)/60))
+print('Done. Total processing time took {} minutes.'.format((time.time() - start_timer)/60))

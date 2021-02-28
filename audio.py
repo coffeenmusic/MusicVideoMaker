@@ -60,27 +60,49 @@ def get_audio_data(file, save=True):
 
     return all_data, CHUNK, RATE
 
-def get_split_times(data, rate, amp_thresh, reset_delta=125, chunk=1024):
-    '''
-    reset_delta [ms]: length of time (in ms) to wait before a new split can occur
-    '''
+# def filter_audio_time(data, rate, chunk, start_time=None, stop_time=None):
+#     seconds_per_chunk = chunk / rate
+#     start_idx = int(start_time/seconds_per_chunk) if start_time else 0
+#     stop_idx = int(stop_time/seconds_per_chunk) if stop_time else len(data) - 1
+#
+#     # Update times for rounding during conversion to integer index
+#     new_start_time = start_idx * seconds_per_chunk
+#     new_stop_time = stop_idx * seconds_per_chunk
+#
+#     return data[start_idx:stop_idx], new_start_time, new_stop_time
 
-    reset_delta_frames = int(reset_delta / ((chunk / rate) * 1000)) + 2
+def get_split_times(data, rate, amp_thresh, min_reset=125, chunk=1024, start_time=0, stop_time=0):
+    '''
+    min_reset [ms]: length of time (in ms) to wait before a new split can occur
+    start_time[s]: start audio data here
+    stop_time [s]: stop audio data here
+    '''
+    stop_time = len(data) * (chunk / rate) if stop_time == 0 else stop_time
+    # if start_time > 0 or stop_time > 0:
+    #     data, _, _ = filter_audio_time(data, rate, chunk, start_time, stop_time)
+
+    min_reset_frame_cnt = int(min_reset / ((chunk / rate) * 1000)) + 2
 
     abv_thresh = [np.max(d) > amp_thresh and is_increasing(d) for d in data]
-    times = []
+    times = [start_time]
 
     i = 0
     while True:
-        if abv_thresh[i] == True:
-            times += [i * chunk / rate]
-            i += reset_delta_frames
+        time = i * chunk / rate
+
+        # Filter to start & stop times
+        if time >= start_time and time <= stop_time:
+            if abv_thresh[i] == True:
+                times += [time]
+                i += min_reset_frame_cnt
+            else:
+                i += 1
         else:
             i += 1
 
         if i >= len(abv_thresh):
             # Add final time
-            times += [len(data) * chunk / rate]
+            times += [stop_time]
             break
 
     return times
