@@ -20,8 +20,12 @@ TODO:
 - Save audio data for reuse
 """
 
+AUD_FILE = 'None Specified'
+FINAL_AUDIO = 'None Specified'
 VID_DIR = os.path.join('Media', 'Videos') # Default video directory
+AUDIO_DIR = os.path.join('Media', 'Audio') # Default audio directory
 EXPORT_FILENAME = 'music_video.mp4'
+SAVED_THRESH_FILENAME = 'saved_thresholds.pkl'
 SHUFFLE_CNT = 0
 USE_ONCE = False
 SHUFFLE_CHUNK_SIZE = 20
@@ -98,6 +102,11 @@ while True:
 
 VID_FILES = [os.path.join(VID_DIR, f) for f in os.listdir(VID_DIR) if f.split('.')[-1].lower() in VIDEO_EXTENSIONS]
 
+if EXPORT_CLIPS:
+    clip_generator = get_clips(VID_FILES, use_once=True, shuffle=False, chunk_size=SHUFFLE_CHUNK_SIZE, frame_check_freq=CHECK_FREQ, use_decord=USE_DECORD)
+    export_clips(clip_generator)
+    exit(0)
+
 print('Video Directory: ', VID_DIR)
 print('Reference Audio File: ', AUD_FILE)
 print('Song Used in Final Music Video: ', FINAL_AUDIO)
@@ -111,10 +120,18 @@ if saved_data:
 else:
     audio_data, CHUNK, RATE = get_audio_data(AUD_FILE)
 
+# Import saved audio amplitude threshold data
+saved_thresholds = pickle.load(open(os.path.join(AUDIO_DIR, SAVED_THRESH_FILENAME), "rb"))
+audio_thresholds = saved_thresholds['thresholds']
+freq_buckets = saved_thresholds['buckets']
+freq_buckets_min = saved_thresholds['min_buckets']
+freq_buckets_max = saved_thresholds['max_buckets']
+
 STOP_TIME = len(audio_data)*(CHUNK/RATE) if STOP_TIME == 0 else STOP_TIME
 print(f'Audio to be processed between {START_TIME}s & {STOP_TIME}s')
 print('Getting split times from audio file...')
-times = get_split_times(audio_data, RATE, amp_thresh, chunk=CHUNK, start_time=START_TIME, stop_time=STOP_TIME)
+#times = get_split_times_simple(audio_data, RATE, amp_thresh, chunk=CHUNK, start_time=START_TIME, stop_time=STOP_TIME)
+times = get_split_times(audio_data, RATE, audio_thresholds, freq_buckets, freq_buckets_min, freq_buckets_max, chunk=CHUNK, start_time=START_TIME, stop_time=STOP_TIME)
 print(f'{len(times)} audio slices created.')
 
 print('Building music video. This will take a long time...')
@@ -128,13 +145,13 @@ else:
 
 clip_generator = get_clips(VID_FILES, use_once=USE_ONCE, shuffle=shuffle, chunk_size=SHUFFLE_CHUNK_SIZE, frame_check_freq=CHECK_FREQ, use_decord=USE_DECORD)
 
-if EXPORT_CLIPS:
-    export_clips(clip_generator)
-    cont = input('Clips exported. Would you like to continue [y/n]?')
-    if cont.lower() in ['y', 'yes']:
-        pass
-    else:
-        exit(0)
+# if EXPORT_CLIPS:
+#     export_clips(clip_generator)
+#     cont = input('Clips exported. Would you like to continue [y/n]?')
+#     if cont.lower() in ['y', 'yes']:
+#         pass
+#     else:
+#         exit(0)
 
 for export_cnt in range(SHUFFLE_CNT):
     mv_clips = build_mv_clips(times, clip_generator, use_clip_dir=USE_CLIP_DIR, use_img_dir=USE_IMG_DIR, use_once=USE_ONCE, shuffle=shuffle, chunk_size=SHUFFLE_CHUNK_SIZE)

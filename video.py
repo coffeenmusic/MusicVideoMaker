@@ -95,20 +95,17 @@ def split_video(vid_filename, check_freq=1, split_thresh=10, shuffle=False):
         start_time = 0  # time in seconds from video where current clip starts
         prev_frame = video_chunk.get_frame(0)  # Initialize previous frame
 
-        with tqdm(total=int(video_chunk.duration*video_chunk.fps)) as pbar:
-            for i, (time, frame) in enumerate(video_chunk.iter_frames(with_times=True)):
+        for i, (time, frame) in enumerate(video_chunk.iter_frames(with_times=True)):
 
-                if i % frame_freq == 0:
-                    if i > 0:  # Skip first frame
-                        if start_time != stop_time and scene_changed(prev_frame, frame, delta_thresh=split_thresh):
-                            yield video_chunk.subclip(start_time, stop_time)
+            if i % frame_freq == 0:
+                if i > 0:  # Skip first frame
+                    if start_time != stop_time and scene_changed(prev_frame, frame, delta_thresh=split_thresh):
+                        yield video_chunk.subclip(start_time, stop_time)
 
-                            start_time = time
+                        start_time = time
 
-                    prev_frame = frame.copy()
-                    stop_time = time
-
-                pbar.update(i)
+                prev_frame = frame.copy()
+                stop_time = time
 
 def export_clips(clip_generator, path=None):
     if path == None:
@@ -140,8 +137,10 @@ def shuffle_in_chunks(in_list, chunk_size=20):
         in_list - list to be shuffled
         chunk_size - length of clips grouped together that aren't shuffled (Example: [3,4,1,2,5,6] chunk=2
     """
-    chunk_size = int(len(in_list) / 2) if chunk_size > len(in_list) / 2 else chunk_size # Allow minimum shuffle if list too small or chunk too large
+    if len(in_list) == 1:
+        return in_list
 
+    chunk_size = int(len(in_list) / 2) if chunk_size > len(in_list) / 2 else chunk_size # Allow minimum shuffle if list too small or chunk too large
     new_len = (len(in_list) // chunk_size) * chunk_size
     in_list = in_list[:new_len]
 
@@ -153,7 +152,7 @@ def shuffle_in_chunks(in_list, chunk_size=20):
 
     return [in_list[i] for i in shuffle_idxs]
 
-def get_clips(video_path_list, use_once=True, shuffle=False, chunk_size=10, frame_check_freq=1, use_decord=False, max_clips=100):
+def get_clips(video_path_list, use_once=True, shuffle=False, chunk_size=10, frame_check_freq=1, use_decord=False):
     """
     Iterate video frames, split at scene changes, and create clips to yield back
         video_path_list - a list of paths to all videos being iterated on
@@ -162,31 +161,13 @@ def get_clips(video_path_list, use_once=True, shuffle=False, chunk_size=10, fram
         chunk_size - number of clips to keep unshuffled when shuffling all clips
         frame_check_freq - how often in seconds to compare frames for scene change
         use decord - decord is faster than moviepy, but seems to be more buggy and doesn't alway work
-        max_clips - creates list of clips with this size so those clips can be shuffled. Otherwise shuffle wouldn't be possible
     """
-    #max_clips = len(video_path_list) if len(video_path_list) < max_clips else max_clips
-
     while True:
         video_path_list = shuffle_in_chunks(video_path_list, chunk_size=1) if shuffle else video_path_list
         for video_cnt, path in enumerate(video_path_list):
             split_generator = split_video_decord(path, check_freq=frame_check_freq) if use_decord else split_video(path, check_freq=frame_check_freq, shuffle=shuffle)
 
             print(f'Processing video file {video_cnt + 1}/{len(video_path_list)}: {path}')
-            # clips_available = True
-            # while clips_available:
-            #     # Collect clips in chunks of max_clips
-            #     clips = []
-            #     for _ in range(max_clips):
-            #         try:
-            #             clip = next(split_generator)
-            #         except:
-            #             clips_available = False
-            #
-            #         clips += [clip]
-            #
-            #     clips = shuffle_in_chunks(clips, chunk_size=chunk_size) if shuffle else clips
-            #     for c in clips:
-            #         yield c
             for clip in split_generator:
                 yield clip
 

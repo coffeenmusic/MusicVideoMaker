@@ -60,18 +60,80 @@ def get_audio_data(file, save=True):
 
     return all_data, CHUNK, RATE
 
-# def filter_audio_time(data, rate, chunk, start_time=None, stop_time=None):
-#     seconds_per_chunk = chunk / rate
-#     start_idx = int(start_time/seconds_per_chunk) if start_time else 0
-#     stop_idx = int(stop_time/seconds_per_chunk) if stop_time else len(data) - 1
-#
-#     # Update times for rounding during conversion to integer index
-#     new_start_time = start_idx * seconds_per_chunk
-#     new_stop_time = stop_idx * seconds_per_chunk
-#
-#     return data[start_idx:stop_idx], new_start_time, new_stop_time
+def fft_to_buckets(freq, PSD, buckets):
+    """
+    Takes the current CHUNK's frequency response and breaks each frequency in to buckets
+    - freq: audio files CHUNK of data amplitudes converted in to frequencies
+    - PSD: power spectral density of each frequency
+    - buckets: a list of frequencies where each freq in the list will create a range between that freq and the previous
+        example - [100, 1000, 5000] Hz
+    """
+    idxs = sorted({np.abs(freq - i).argmin() for i in buckets}) # Get indices of freq from closest frequencies in buckets
 
-def get_split_times(data, rate, amp_thresh, min_reset=125, chunk=1024, start_time=0, stop_time=0):
+    # Average PSD values in between frequencies defined by buckets
+    freq_bucket = [PSD[idxs[i]:idxs[i+1]].mean() for i in range(len(idxs)-1)]  + [PSD[idxs[-1]:].mean()]
+
+    return freq_bucket, idxs
+
+def get_audio_freqs_in_buckets(audio_data_chunk, buckets, rate):
+    """
+        Takes the current CHUNK's audio amplitudes, converts to the frequency domain, then buckets those frequencies
+        - buckets: a list of frequencies where each freq in the list will create a range between that freq and the previous
+            example - [100, 1000, 5000] Hz
+    """
+
+    n = len(audio_data_chunk)
+    fhat = np.fft.fft(audio_data_chunk, n)
+    PSD = np.abs(fhat * np.conj(fhat) / n)  # Power Spectral Density
+    freq = (rate / n) * np.arange(n)
+
+    fb, _ = fft_to_buckets(freq, PSD, buckets)  # Chunk frequencies in to buckets
+    return fb
+
+def get_split_times(data, rate, thresholds, buckets, buckets_min, buckets_max, min_reset=125, chunk=1024, start_time=0, stop_time=0):
+    '''
+    min_reset [ms]: length of time (in ms) to wait before a new split can occur
+    start_time[s]: start audio data here
+    stop_time [s]: stop audio data here
+    '''
+    stop_time = len(data) * (chunk / rate) if stop_time == 0 else stop_time
+
+    min_reset_frame_cnt = int(min_reset / ((chunk / rate) * 1000)) + 2
+
+    times = [start_time]
+
+    i = 0
+    while True:
+        time = i * chunk / rate
+
+        freq_buckets = get_audio_freqs_in_buckets(data[i], buckets, rate)
+
+        # Scale buckets
+        scaled = (freq_buckets - buckets_min) / (buckets_max - buckets_min)
+        multiplier = 2
+        scaled = scaled / multiplier
+
+        abv_thresh = any([s > thresholds[s_idx] for s_idx, s in enumerate(scaled)])
+
+        # Filter to start & stop times
+        if time >= start_time and time <= stop_time:
+            if abv_thresh:
+                times += [time]
+                i += min_reset_frame_cnt
+            else:
+                i += 1
+        else:
+            i += 1
+
+        # If No More data
+        if i >= len(data):
+            # Add final time
+            times += [stop_time]
+            break
+
+    return times
+
+def get_split_times_simple(data, rate, amp_thresh, min_reset=125, chunk=1024, start_time=0, stop_time=0):
     '''
     min_reset [ms]: length of time (in ms) to wait before a new split can occur
     start_time[s]: start audio data here
