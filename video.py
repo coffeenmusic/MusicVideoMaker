@@ -22,42 +22,32 @@ def split_video_decord(vid_filename, check_freq=1, split_thresh=10):
     check_freq [seconds] - how often to compare two frames for scene change
     split_thresh - mean difference in pixel values allowed before triggering split
     """
-    with open(vid_filename, 'rb') as f:
-        video = VideoFileClip(vid_filename)
-        vr = VideoReader(vid_filename, ctx=cpu(0))
+    video = VideoFileClip(vid_filename)
+    vr = VideoReader(vid_filename, ctx=cpu(0))
+    fps = vr.get_avg_fps()
 
-        clip_cnt = 0  # Number of clips created from video
-        start_time = 0  # time in seconds from video where current clip starts
+    clip_cnt = 0  # Number of clips created from video
+    start_time = 0  # time in seconds from video where current clip starts
 
-        frame_freq = int(video.reader.fps * check_freq)
-        print(f'Compare frames every {check_freq} seconds. This equals {frame_freq} frames.')
+    frame_freq = int(video.reader.fps * check_freq)
+    print(f'Compare frames every {check_freq} seconds. This equals {frame_freq} frames.')
 
-        total_frames = len(vr)
+    prev_frame = vr[0].asnumpy()
+    for i in range(0, len(vr), frame_freq):
+        frame = vr[i].asnumpy()
 
-        prev_frame = vr[0]
+        if i > 0:  # Skip first frame
+            if start_time != stop_time and scene_changed(prev_frame, frame, delta_thresh=split_thresh):
+                clip = video.subclip(start_time, stop_time)
 
-        no_change_cnt = 0
-        for i in range(0, total_frames, frame_freq):
-            frame = vr[i].asnumpy()
+                start_time = i/fps
 
-            if i > 0:  # Skip first frame
-                if start_time != stop_time and scene_changed(prev_frame, frame, delta_thresh=split_thresh):
-                    clip = video.subclip(start_time, stop_time)
+                clip_cnt += 1
 
-                    start_time = i / video.reader.fps
+                yield clip
 
-                    clip_cnt += 1
-
-                    yield clip
-                else:
-                    no_change_cnt += 1
-
-                if no_change_cnt > 10:
-                    cont = input('Not seeing scene changes. Continue [y/n]?')
-                    if cont.lower() not in ['y', 'yes']:
-                        break
-            prev_frame = frame
-            stop_time = i / video.reader.fps
+        prev_frame = frame
+        stop_time = i/fps
 
 def get_video_in_chunks(video, chunk_time=30, shuffle=False):
     """
@@ -77,7 +67,7 @@ def get_video_in_chunks(video, chunk_time=30, shuffle=False):
     for start, stop in times:
         yield video.subclip(start, stop)
 
-def split_video(vid_filename, check_freq=1, split_thresh=10, shuffle=False):
+def split_video(vid_filename, check_freq=1, split_thresh=5, shuffle=False):
     """
     Creates clips that are split between frames that have a scene change which is likely
     found by comparing mean pixel values between a current frame and previous frame
