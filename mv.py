@@ -100,6 +100,14 @@ while True:
     if i >= len(args):
         break
 
+# Verify file paths
+if not(os.path.exists(AUD_FILE)) or not(os.path.exists(FINAL_AUDIO)):
+    print('Audio filepath cannot be found.')
+    exit(0)
+elif not(os.path.exists(VID_DIR)):
+    print('Video directory could not be found.')
+    exit(0)
+
 VID_FILES = [os.path.join(VID_DIR, f) for f in os.listdir(VID_DIR) if f.split('.')[-1].lower() in VIDEO_EXTENSIONS]
 
 if EXPORT_CLIPS:
