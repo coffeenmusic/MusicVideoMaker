@@ -75,6 +75,22 @@ def fft_to_buckets(freq, PSD, buckets):
 
     return freq_bucket, idxs
 
+def get_minmax_bucket_freq(audio_data, buckets, rate):
+    for i, data in enumerate(audio_data):
+        n = len(data)
+        fhat = np.fft.fft(data, n)
+        PSD = np.abs(fhat * np.conj(fhat) / n)  # Power Spectral Density
+        freq = (rate / n) * np.arange(n)
+
+        fb, idxs = fft_to_buckets(freq, PSD, buckets)  # Chunk frequencies in to buckets
+
+        if i == 0:
+            all_buckets = np.array(fb)
+        else:
+            all_buckets = np.vstack((all_buckets, fb))
+
+    return np.min(all_buckets, axis=0), np.max(all_buckets, axis=0)
+
 def get_audio_freqs_in_buckets(audio_data_chunk, buckets, rate):
     """
         Takes the current CHUNK's audio amplitudes, converts to the frequency domain, then buckets those frequencies
@@ -110,10 +126,9 @@ def get_split_times(data, rate, thresholds, buckets, buckets_min, buckets_max, m
 
         # Scale buckets
         scaled = (freq_buckets - buckets_min) / (buckets_max - buckets_min)
-        multiplier = 2
-        scaled = scaled / multiplier
 
-        abv_thresh = any([s > thresholds[s_idx] for s_idx, s in enumerate(scaled)])
+        # If freq range is above threshold limit. Ignore thresholds set to 0
+        abv_thresh = any([(s > thresholds[s_idx]) and thresholds[s_idx] > 0 for s_idx, s in enumerate(scaled)])
 
         # Filter to start & stop times
         if time >= start_time and time <= stop_time:

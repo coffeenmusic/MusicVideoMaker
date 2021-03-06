@@ -8,6 +8,7 @@ import sys
 
 AUD_DIR = os.path.join('Media', 'Audio')
 AUD_FILE = os.path.join(AUD_DIR, 'drums.wav')
+SAVE_FILE = 'saved_thresholds.pkl'
 TEST_THRESHOLDS = False
 
 i = 0
@@ -23,6 +24,10 @@ while True:
     i += 1
     if i >= len(args):
         break
+
+if not(os.path.exists(AUD_FILE)):
+    print('Audio filepath cannot be found.')
+    exit(0)
 
 SCREEN_WIDTH = 800
 SCREEN_HEIGHT = 800
@@ -167,4 +172,5 @@ pygame.quit()
 pickle.dump({'thresholds': thresh,
              'buckets': buckets,
              'min_buckets': min_bucket,
-             'max_buckets': max_bucket}, open('saved_thresholds.pkl', "wb"))
+             'max_buckets': max_bucket,
+             'audio_file': AUD_FILE.split('\\')[-1]}, open(os.path.join(AUD_DIR, SAVE_FILE), "wb"))
