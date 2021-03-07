@@ -17,3 +17,8 @@ def get_unique_filename(requested_name):
         i += 1
         new_name = name + str(i) + '.' + ext
     return new_name
+    
+def add_dirs_if_not_exists(dir_list):
+    for dir in dir_list:
+        if not(os.path.exists(dir)):
+            os.mkdir(dir)

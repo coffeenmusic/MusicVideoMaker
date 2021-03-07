@@ -1,6 +1,6 @@
 from audio import get_audio_data, get_saved_audio, get_split_times, is_increasing
 from video import build_musicvideo_clips, export_clips, VIDEO_EXTENSIONS, IMG_EXTENSIONS
-from other import get_unique_filename
+from other import get_unique_filename, add_dirs_if_not_exists
 from moviepy.editor import VideoFileClip, concatenate_videoclips, AudioFileClip
 from decord import VideoReader
 from decord import cpu, gpu
@@ -97,12 +97,10 @@ while True:
     if i >= len(args):
         break
 
-# Verify video directory exists
-if not(os.path.exists(VID_DIR)):
-    print('Video directory could not be found.')
-    exit(0)
+add_dirs_if_not_exists([VID_DIR, AUDIO_DIR, CLIP_DIR])
 
 VID_FILES = [os.path.join(VID_DIR, f) for f in os.listdir(VID_DIR) if f.split('.')[-1].lower() in VIDEO_EXTENSIONS]
+assert len(VID_FILES) > 0, f'No videos found in video directory {VID_DIR}'
 
 if EXPORT_CLIPS:
     clip_generator = get_clips(VID_FILES, use_once=True, shuffle=False, chunk_size=SHUFFLE_CHUNK_SIZE, frame_check_freq=CHECK_FREQ, use_decord=USE_DECORD)
@@ -110,9 +108,8 @@ if EXPORT_CLIPS:
     exit(0)
 
 # Verify audio files exist
-if not(os.path.exists(AUD_FILE)) or not(os.path.exists(FINAL_AUDIO)):
-    print('Audio filepath cannot be found.')
-    exit(0)
+assert os.path.exists(AUD_FILE), f'Audio file {AUD_FILE} not found.'
+assert os.path.exists(FINAL_AUDIO), f'Audio file {FINAL_AUDIO} not found.'
 
 print('Video Directory: ', VID_DIR)
 print('Reference Audio File: ', AUD_FILE)
