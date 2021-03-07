@@ -28,7 +28,6 @@ def get_video_split_times(vid_filename, check_freq=1, split_thresh=10):
     start_time = 0  # time in seconds from video where current clip starts
 
     frame_freq = int(fps * check_freq)
-    print(f'Compare frames every {check_freq} seconds. This equals {frame_freq} frames.')
 
     times = []
     for i in range(0, len(vr), frame_freq):
@@ -42,6 +41,9 @@ def get_video_split_times(vid_filename, check_freq=1, split_thresh=10):
 
         prev_frame = frame
         stop_time = i/fps
+
+    if len(times) == 0:
+        times += [(0, stop_time)]
 
     return times
 
@@ -138,70 +140,48 @@ def shuffle_in_chunks(in_list, chunk_size=20):
 
     return [in_list[i] for i in shuffle_idxs]
 
-def get_clips(video_path_list, audio_split_times, use_once=True, shuffle=False, chunk_size=10, frame_check_freq=1, use_decord=False):
+def get_clip_times(video_path_list, split_thresh=5, use_once=False, shuffle=False, frame_check_freq=1, max_time=5000):
     """
     Iterate video frames, split at scene changes, and create clips to yield back
         video_path_list - a list of paths to all videos being iterated on
-        audio_split_times - flag of audio file times where clips will need to be cut to match video transitions to audio file beats
-        use_once - run through clips one time without shuffling
         shuffle - shuffle clips if True else use in order they are listed
-        chunk_size - number of clips to keep unshuffled when shuffling all clips
         frame_check_freq - how often in seconds to compare frames for scene change
-        use decord - decord is faster than moviepy, but seems to be more buggy and doesn't alway work
     """
-    thresh_interval = 5
+    assert len(video_path_list) > 0, "Empty video path list."
 
-    audio_cut_lens = np.diff(audio_split_times)  # Get the time delta between times (audio delta to next beat [s])
     while True:
         video_path_list = shuffle_in_chunks(video_path_list, chunk_size=1) if shuffle else video_path_list
         for video_cnt, path in enumerate(video_path_list):
-            #split_generator = split_video_decord(path, check_freq=frame_check_freq) if use_decord else split_video(path, check_freq=frame_check_freq, shuffle=shuffle)
-
-            split_thresh = 5
-            clips_ready = False
-            while not(clips_ready):
+            if path.split('.')[-1] in VIDEO_EXTENSIONS:
                 split_times = get_video_split_times(path, check_freq=frame_check_freq, split_thresh=split_thresh)
-                max_clip_duration = max([stop - start for start, stop in split_times])
-
-                max_audio = max(audio_cut_lens)
-                if max_clip_duration < max_audio:
-                    print(f'No clips long enough for maximum audio beat interval duration {max_audio}. Clip threshold, currently {split_thresh}, will be increased by {thresh_interval} and tried again.')
-                    cont = input('Would you like to continue [y/n]?')
-                    if cont.lower() not in ['y', 'yes']:
-                        exit(0)
-                    split_thresh += thresh_interval
-                else:
-                    clips_ready = True
-
-            print(f'Processing video file {video_cnt + 1}/{len(video_path_list)}: {path}')
-            video = VideoFileClip(path)
-            for start_time, stop_time in split_times:
-                clip = video.subclip(start_time, stop_time)
-                yield clip
+            elif path.split('.')[-1] in IMG_EXTENSIONS:
+                split_times = [(0, max_time)]
+            yield path, split_times
 
         if use_once:
             break
 
-def get_clips_from_dir(path=None, use_once=False, shuffle=False, chunk_size=20):
-    """
-    Get clips from a clip directory:
-        path - path to the clip dir that contains video clips
-        use_once - run through clips one time without reusing clips
-        shuffle - shuffle clips if True else use in order they are listed
-        chunk_size - number of clips to keep unshuffled when shuffling all clips
-    """
-    if path == None:
-        path = os.path.join('Media', 'Clips')
-
-    path_list = [os.path.join(path, d) for d in os.listdir(path) if d.split('.')[-1] in VIDEO_EXTENSIONS]
-
-    while True:
-        clip_paths = shuffle_in_chunks(path_list, chunk_size=chunk_size) if shuffle else path_list
-        for p in clip_paths:
-            yield VideoFileClip(p)
-
-        if use_once:
-            break
+# def get_clips_from_dir(path=None, use_once=False, shuffle=False, chunk_size=20):
+#     """
+#     Get clips from a clip directory:
+#         path - path to the clip dir that contains video clips
+#         use_once - run through clips one time without reusing clips
+#         shuffle - shuffle clips if True else use in order they are listed
+#         chunk_size - number of clips to keep unshuffled when shuffling all clips
+#     """
+#     if path == None:
+#         path = os.path.join('Media', 'Clips')
+#
+#     path_list = [os.path.join(path, d) for d in os.listdir(path) if d.split('.')[-1] in VIDEO_EXTENSIONS]
+#     assert len(path_list) > 0, f"No clips found in clip directory {path}."
+#
+#     while True:
+#         clip_paths = shuffle_in_chunks(path_list, chunk_size=chunk_size) if shuffle else path_list
+#         for p in clip_paths:
+#             yield p, [()]
+#
+#         if use_once:
+#             break
 
 def get_clips_from_img_dir(path=None, use_once=False, shuffle=False, chunk_size=20, height=1080):
     """

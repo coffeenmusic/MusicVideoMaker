@@ -1,7 +1,7 @@
 from audio import get_audio_data, get_saved_audio, get_split_times, is_increasing
-from video import get_clips, export_clips, VIDEO_EXTENSIONS
+from video import export_clips, VIDEO_EXTENSIONS, IMG_EXTENSIONS
 from other import get_unique_filename
-from music_video import build_mv_clips
+from music_video import build_mv_clips, build_mv_clips2
 from moviepy.editor import VideoFileClip, concatenate_videoclips, AudioFileClip
 from decord import VideoReader
 from decord import cpu, gpu
@@ -23,6 +23,7 @@ TODO:
 AUD_FILE = 'None Specified'
 FINAL_AUDIO = 'None Specified'
 VID_DIR = os.path.join('Media', 'Videos') # Default video directory
+CLIP_DIR = os.path.join('Media', 'Clips')
 AUDIO_DIR = os.path.join('Media', 'Audio') # Default audio directory
 EXPORT_FILENAME = 'music_video.mp4'
 SAVED_THRESH_FILENAME = 'saved_thresholds.pkl'
@@ -33,7 +34,6 @@ CHECK_FREQ = 1
 USE_DECORD = False
 EXPORT_CLIPS = False
 USE_CLIP_DIR = False
-USE_IMG_DIR = False
 START_TIME = 0
 STOP_TIME = 0
 amp_thresh = 1000000000
@@ -88,8 +88,6 @@ while True:
         EXPORT_CLIPS = True
     elif args[i] == '-use_clip_dir':
         USE_CLIP_DIR = True
-    elif args[i] == '-use_img_dir':
-        USE_IMG_DIR = True
     elif args[i] == '-use_once': # Use each clip only once
         USE_ONCE = True
     elif i != 0:
@@ -100,11 +98,8 @@ while True:
     if i >= len(args):
         break
 
-# Verify file paths
-if not(os.path.exists(AUD_FILE)) or not(os.path.exists(FINAL_AUDIO)):
-    print('Audio filepath cannot be found.')
-    exit(0)
-elif not(os.path.exists(VID_DIR)):
+# Verify video directory exists
+if not(os.path.exists(VID_DIR)):
     print('Video directory could not be found.')
     exit(0)
 
@@ -113,6 +108,11 @@ VID_FILES = [os.path.join(VID_DIR, f) for f in os.listdir(VID_DIR) if f.split('.
 if EXPORT_CLIPS:
     clip_generator = get_clips(VID_FILES, use_once=True, shuffle=False, chunk_size=SHUFFLE_CHUNK_SIZE, frame_check_freq=CHECK_FREQ, use_decord=USE_DECORD)
     export_clips(clip_generator)
+    exit(0)
+
+# Verify audio files exist
+if not(os.path.exists(AUD_FILE)) or not(os.path.exists(FINAL_AUDIO)):
+    print('Audio filepath cannot be found.')
     exit(0)
 
 print('Video Directory: ', VID_DIR)
@@ -138,9 +138,8 @@ freq_buckets_max = saved_thresholds['max_buckets']
 STOP_TIME = len(audio_data)*(CHUNK/RATE) if STOP_TIME == 0 else STOP_TIME
 print(f'Audio to be processed between {START_TIME}s & {STOP_TIME}s')
 print('Getting split times from audio file...')
-#times = get_split_times_simple(audio_data, RATE, amp_thresh, chunk=CHUNK, start_time=START_TIME, stop_time=STOP_TIME)
-times = get_split_times(audio_data, RATE, audio_thresholds, freq_buckets, freq_buckets_min, freq_buckets_max, chunk=CHUNK, start_time=START_TIME, stop_time=STOP_TIME)
-print(f'{len(times)} audio slices created.')
+audio_split_times = get_split_times(audio_data, RATE, audio_thresholds, freq_buckets, freq_buckets_min, freq_buckets_max, chunk=CHUNK, start_time=START_TIME, stop_time=STOP_TIME)
+print(f'{len(audio_split_times)} audio slices created.')
 
 print('Building music video. This will take a long time...')
 
@@ -151,25 +150,17 @@ if SHUFFLE_CNT == 0:
 else:
     print(f'{SHUFFLE_CNT} music videos to be created with same clips shuffled on each iteration.')
 
-clip_generator = get_clips(VID_FILES, use_once=USE_ONCE, shuffle=shuffle, chunk_size=SHUFFLE_CHUNK_SIZE, frame_check_freq=CHECK_FREQ, use_decord=USE_DECORD)
-
-# if EXPORT_CLIPS:
-#     export_clips(clip_generator)
-#     cont = input('Clips exported. Would you like to continue [y/n]?')
-#     if cont.lower() in ['y', 'yes']:
-#         pass
-#     else:
-#         exit(0)
+if USE_CLIP_DIR:
+    VID_FILES = [os.path.join(CLIP_DIR, d) for d in os.listdir(CLIP_DIR) if d.split('.')[-1] in VIDEO_EXTENSIONS + IMG_EXTENSIONS]
 
 for export_cnt in range(SHUFFLE_CNT):
-    mv_clips = build_mv_clips(times, clip_generator, use_clip_dir=USE_CLIP_DIR, use_img_dir=USE_IMG_DIR, use_once=USE_ONCE, shuffle=shuffle, chunk_size=SHUFFLE_CHUNK_SIZE)
-
+    mv_clips = build_mv_clips(VID_FILES, audio_split_times, shuffle=shuffle)
     assert len(mv_clips) > 0, "Error no clips created. Clip lens may be too short for audio splice times."
 
     print(f'Build complete. Cut {len(mv_clips)} clips to match audio slices. Exporting video...')
     music_video = concatenate_videoclips(mv_clips, method='compose')
 
-    STOP_TIME = times[-1] if music_video.duration < STOP_TIME or STOP_TIME == 0 else STOP_TIME
+    STOP_TIME = audio_split_times[-1] if music_video.duration < STOP_TIME or STOP_TIME == 0 else STOP_TIME
     music_audio = AudioFileClip(FINAL_AUDIO).subclip(START_TIME, STOP_TIME)
 
     final_music_video = music_video.set_audio(music_audio)
