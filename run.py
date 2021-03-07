@@ -1,7 +1,6 @@
 from audio import get_audio_data, get_saved_audio, get_split_times, is_increasing
-from video import export_clips, VIDEO_EXTENSIONS, IMG_EXTENSIONS
+from video import build_musicvideo_clips, export_clips, VIDEO_EXTENSIONS, IMG_EXTENSIONS
 from other import get_unique_filename
-from music_video import build_mv_clips, build_mv_clips2
 from moviepy.editor import VideoFileClip, concatenate_videoclips, AudioFileClip
 from decord import VideoReader
 from decord import cpu, gpu
@@ -154,7 +153,7 @@ if USE_CLIP_DIR:
     VID_FILES = [os.path.join(CLIP_DIR, d) for d in os.listdir(CLIP_DIR) if d.split('.')[-1] in VIDEO_EXTENSIONS + IMG_EXTENSIONS]
 
 for export_cnt in range(SHUFFLE_CNT):
-    mv_clips = build_mv_clips(VID_FILES, audio_split_times, shuffle=shuffle)
+    mv_clips = build_musicvideo_clips(VID_FILES, audio_split_times, shuffle=shuffle)
     assert len(mv_clips) > 0, "Error no clips created. Clip lens may be too short for audio splice times."
 
     print(f'Build complete. Cut {len(mv_clips)} clips to match audio slices. Exporting video...')
