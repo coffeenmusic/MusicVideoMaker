@@ -47,54 +47,6 @@ def get_video_split_times(vid_filename, check_freq=1, split_thresh=10):
 
     return times
 
-# def get_video_in_chunks(video, chunk_time=30, shuffle=False):
-#     """
-#     This function allows for shuffling of video without having to process the
-#     entire video before shuffling and also allows the video to be processed in
-#     smaller increments even when not shuffled.
-#         chunk_time [s]
-#     """
-#     times = []
-#     chunk_time = int(chunk_time)
-#     for i in range(0, int(video.duration) - chunk_time, chunk_time):
-#         times += [(i, i+chunk_time)]
-#     times += [(max([stop for _, stop in times]), video.duration)] # Add final time delta
-#
-#     times = shuffle_in_chunks(times, chunk_size=1) if shuffle else times
-#
-#     for start, stop in times:
-#         yield video.subclip(start, stop)
-
-# def split_video(vid_filename, check_freq=1, split_thresh=5, shuffle=False):
-#     """
-#     Creates clips that are split between frames that have a scene change which is likely
-#     found by comparing mean pixel values between a current frame and previous frame
-#         check_freq [seconds] - how often to compare two frames for scene change
-#         split_thresh - mean difference in pixel values allowed before triggering split
-#     """
-#     video = VideoFileClip(vid_filename)
-#
-#     frame_freq = int(video.reader.fps * check_freq)
-#     print(f'Compare frames every {check_freq} seconds. This equals {frame_freq} frames.')
-#
-#     for video_chunk in get_video_in_chunks(video, shuffle=shuffle):
-#
-#         # Initialize video chunk parameters
-#         start_time = 0  # time in seconds from video where current clip starts
-#         prev_frame = video_chunk.get_frame(0)  # Initialize previous frame
-#
-#         for i, (time, frame) in enumerate(video_chunk.iter_frames(with_times=True)):
-#
-#             if i % frame_freq == 0:
-#                 if i > 0:  # Skip first frame
-#                     if start_time != stop_time and scene_changed(prev_frame, frame, delta_thresh=split_thresh):
-#                         yield video_chunk.subclip(start_time, stop_time)
-#
-#                         start_time = time
-#
-#                 prev_frame = frame.copy()
-#                 stop_time = time
-
 def export_clips(clip_generator, path=None):
     if path == None:
         path = os.path.join('Media', 'Clips')
@@ -160,28 +112,6 @@ def get_clip_times(video_path_list, split_thresh=5, use_once=False, shuffle=Fals
 
         if use_once:
             break
-
-# def get_clips_from_dir(path=None, use_once=False, shuffle=False, chunk_size=20):
-#     """
-#     Get clips from a clip directory:
-#         path - path to the clip dir that contains video clips
-#         use_once - run through clips one time without reusing clips
-#         shuffle - shuffle clips if True else use in order they are listed
-#         chunk_size - number of clips to keep unshuffled when shuffling all clips
-#     """
-#     if path == None:
-#         path = os.path.join('Media', 'Clips')
-#
-#     path_list = [os.path.join(path, d) for d in os.listdir(path) if d.split('.')[-1] in VIDEO_EXTENSIONS]
-#     assert len(path_list) > 0, f"No clips found in clip directory {path}."
-#
-#     while True:
-#         clip_paths = shuffle_in_chunks(path_list, chunk_size=chunk_size) if shuffle else path_list
-#         for p in clip_paths:
-#             yield p, [()]
-#
-#         if use_once:
-#             break
 
 def get_clips_from_img_dir(path=None, use_once=False, shuffle=False, chunk_size=20, height=1080):
     """
