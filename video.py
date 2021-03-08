@@ -92,7 +92,7 @@ def shuffle_in_chunks(in_list, chunk_size=20):
 
     return [in_list[i] for i in shuffle_idxs]
 
-def get_clip_times(video_path_list, split_thresh=5, use_once=False, shuffle=False, frame_check_freq=1, max_time=5000):
+def get_clip_times(video_path_list, split_thresh=5, use_once=False, shuffle=False, frame_check_freq=1, max_time=5000, chunk_size=20):
     """
     Iterate video frames, split at scene changes, and create clips to yield back
         video_path_list - a list of paths to all videos being iterated on
@@ -108,48 +108,15 @@ def get_clip_times(video_path_list, split_thresh=5, use_once=False, shuffle=Fals
                 split_times = get_video_split_times(path, check_freq=frame_check_freq, split_thresh=split_thresh)
             elif path.split('.')[-1] in IMG_EXTENSIONS:
                 split_times = [(0, max_time)]
+
+            if shuffle:
+                split_times = shuffle_in_chunks(split_times, chunk_size=chunk_size)
             yield path, split_times
 
         if use_once:
             break
 
-def get_clips_from_img_dir(path=None, use_once=False, shuffle=False, chunk_size=20, height=1080):
-    """
-    Get images from an image directory, convert them to video clips and yield back:
-        path - path to the image dir that contains images
-        use_once - run through images one time without reusing images
-        shuffle - shuffle images if True else use in order they are listed
-        chunk_size - number of images to keep unshuffled when shuffling all images
-        height - resize all images with this height. Ratio for each individual image should remain the same
-    """
-
-    if path == None:
-        if os.path.exists(os.path.join('Media', 'Images')):
-            path = os.path.join('Media', 'Images')
-        elif os.path.exists(os.path.join('Media', 'Videos')):
-            path = os.path.join('Media', 'Videos')
-        else:
-            path = ''
-
-    assert os.path.exists(path), "Image directory not found."
-
-    path_list = [os.path.join(path, d) for d in os.listdir(path) if d.split('.')[-1] in IMG_EXTENSIONS]
-
-    while True:
-        img_paths = shuffle_in_chunks(path_list, chunk_size=chunk_size) if shuffle else path_list
-        for p in img_paths:
-            #yield ImageClip(p).set_duration(2).set_pos(("center", "center")).resize(height=height)
-            try:
-                img = ImageClip(p).set_pos(("center", "center")).resize(height=height)
-            except:
-                continue
-
-            yield img
-
-        if use_once:
-            break
-
-def build_musicvideo_clips(video_path_list, audio_split_times, shuffle=False, use_once=False, thresh=5, thresh_inc=5, max_thresh=20):
+def build_musicvideo_clips(video_path_list, audio_split_times, shuffle=False, use_once=False, thresh=5, thresh_inc=5, max_thresh=20, chunk_size=20):
 
     with tqdm(total=len(audio_split_times)) as pbar:  # Create progress bar
 
@@ -161,7 +128,7 @@ def build_musicvideo_clips(video_path_list, audio_split_times, shuffle=False, us
 
         prev_clip_len = 0
         while thresh < max_thresh:
-            for path, clip_times in get_clip_times(video_path_list, shuffle=shuffle, use_once=use_once, split_thresh=thresh):
+            for path, clip_times in get_clip_times(video_path_list, shuffle=shuffle, use_once=use_once, split_thresh=thresh, chunk_size=chunk_size):
                 init_video = False
 
                 for start_time, stop_time in clip_times:

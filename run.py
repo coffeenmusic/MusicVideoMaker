@@ -30,6 +30,7 @@ SHUFFLE_CNT = 0
 USE_ONCE = False
 SHUFFLE_CHUNK_SIZE = 20
 CHECK_FREQ = 1
+CHUNK_SIZE = 20
 USE_DECORD = False
 EXPORT_CLIPS = False
 USE_CLIP_DIR = False
@@ -83,6 +84,9 @@ while True:
     elif args[i] == '-stop':
         i += 1
         STOP_TIME = float(args[i])
+    elif args[i] == '-chunk':
+        i += 1
+        CHUNK_SIZE = float(args[i])
     elif args[i] == '-export_clips':
         EXPORT_CLIPS = True
     elif args[i] == '-use_clip_dir':
@@ -150,7 +154,7 @@ if USE_CLIP_DIR:
     VID_FILES = [os.path.join(CLIP_DIR, d) for d in os.listdir(CLIP_DIR) if d.split('.')[-1] in VIDEO_EXTENSIONS + IMG_EXTENSIONS]
 
 for export_cnt in range(SHUFFLE_CNT):
-    mv_clips = build_musicvideo_clips(VID_FILES, audio_split_times, shuffle=shuffle)
+    mv_clips = build_musicvideo_clips(VID_FILES, audio_split_times, shuffle=shuffle, chunk_size=CHUNK_SIZE)
     assert len(mv_clips) > 0, "Error no clips created. Clip lens may be too short for audio splice times."
 
     print(f'Build complete. Cut {len(mv_clips)} clips to match audio slices. Exporting video...')
