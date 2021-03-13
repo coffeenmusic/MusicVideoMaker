@@ -1,3 +1,4 @@
+from other import get_next_path_index
 from moviepy.editor import VideoFileClip, ImageClip
 from decord import VideoReader
 from decord import cpu, gpu
@@ -47,29 +48,22 @@ def get_video_split_times(vid_filename, check_freq=1, split_thresh=10):
 
     return times
 
-def export_clips(clip_generator, path=None):
-    if path == None:
-        path = os.path.join('Media', 'Clips')
+def export_clips(video_path_list, clip_dir=None, split_thresh=5):
+    if clip_dir == None:
+        clip_dir = os.path.join('Media', 'Clips')
 
-    if not (os.path.exists(path)):
-        os.mkdir(path)
+    if not (os.path.exists(clip_dir)):
+        os.mkdir(clip_dir)
 
-    for clip in clip_generator:
-        files = os.listdir(path)
+    for video_path, clip_times in get_clip_times(video_path_list, shuffle=False, use_once=True, split_thresh=split_thresh):
+        video = VideoFileClip(video_path)
 
-        largest_id = 0
-        ids = [int(f.split('.')[0]) for f in files if f.split('.')[-1] in VIDEO_EXTENSIONS and f.split('.')[0].isdigit()]
-        if len(ids) > 0:
-            largest_id = max(ids)
+        for start_time, stop_time in clip_times:
+            clip_name = str(get_next_path_index(clip_dir, ext_list=VIDEO_EXTENSIONS)) + '.mp4'
 
+            clip = video.subclip(start_time, stop_time)
+            clip.write_videofile(os.path.join(clip_dir, clip_name), verbose=False)
 
-        idx = largest_id + 1
-        clip_name = str(idx) + '.mp4'
-        while os.path.exists(os.path.join(path, clip_name)):
-            idx += 1
-            clip_name = str(idx) + '.mp4'
-
-        clip.write_videofile(os.path.join(path, clip_name), verbose=False)
 
 def shuffle_in_chunks(in_list, chunk_size=20):
     """

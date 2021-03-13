@@ -107,8 +107,7 @@ VID_FILES = [os.path.join(VID_DIR, f) for f in os.listdir(VID_DIR) if f.split('.
 assert len(VID_FILES) > 0, f'No videos found in video directory {VID_DIR}'
 
 if EXPORT_CLIPS:
-    clip_generator = get_clips(VID_FILES, use_once=True, shuffle=False, chunk_size=SHUFFLE_CHUNK_SIZE, frame_check_freq=CHECK_FREQ, use_decord=USE_DECORD)
-    export_clips(clip_generator)
+    export_clips(VID_FILES, clip_dir=CLIP_DIR)
     exit(0)
 
 # Verify audio files exist
