@@ -1,4 +1,4 @@
-from audio import open_stream, get_audio_data, get_saved_audio, fft_to_buckets, get_minmax_bucket_freq
+from audio import open_stream, get_audio_data, get_saved_audio, fft_to_buckets, get_minmax_bucket_freq, separate_audio_tracks, SEPARATE_DICT
 import os
 import numpy as np
 import pygame
@@ -6,17 +6,24 @@ from pygame import Color, surfarray
 import pickle
 import sys
 
-AUD_DIR = os.path.join('Media', 'Audio')
-AUD_FILE = os.path.join(AUD_DIR, 'drums.wav')
+MUSIC_FILE = None
+SEPARATED_AUDIO_FILE = None
 SAVE_FILE = 'saved_thresholds.pkl'
 TEST_THRESHOLDS = False
+INSTRUMENT = 'drums.wav'
 
 i = 0
 args = sys.argv
 while True:
-    if args[i] == '-a':
+    if args[i] == '-music':
         i += 1
-        AUD_FILE = str(args[i])
+        MUSIC_FILE = str(args[i])
+    elif args[i] == '-a':
+        i += 1
+        SEPARATED_AUDIO_FILE = str(args[i])
+    elif args[i] == '-instrument':
+        i += 1
+        INSTRUMENT = SEPARATE_DICT[int(args[i])]
     elif i != 0:
         print(f'Command argument {args[i]} not recognized.')
         exit(0)
@@ -25,7 +32,11 @@ while True:
     if i >= len(args):
         break
 
-if not(os.path.exists(AUD_FILE)):
+if not SEPARATED_AUDIO_FILE:
+    save_dir = separate_audio_tracks(MUSIC_FILE)
+    SEPARATED_AUDIO_FILE = os.path.join(save_dir, INSTRUMENT)
+
+if not(os.path.exists(SEPARATED_AUDIO_FILE)):
     print('Audio filepath cannot be found.')
     exit(0)
 
@@ -40,11 +51,11 @@ cell_height = SCREEN_HEIGHT//cell_size
 display_width = cell_width*cell_size
 display_height = cell_height*cell_size
 
-saved_data = get_saved_audio(AUD_FILE)
+saved_data = get_saved_audio(SEPARATED_AUDIO_FILE)
 if saved_data:
     audio_data, CHUNK, RATE = saved_data
 else:
-    audio_data, CHUNK, RATE = get_audio_data(AUD_FILE)
+    audio_data, CHUNK, RATE = get_audio_data(SEPARATED_AUDIO_FILE)
 
 buckets = [31.25 * 2 ** (n) for n in range(10)]
 
@@ -93,7 +104,7 @@ def state_to_px(state, px, thresh, buckets):
     return px
 
 
-stream, wf, CHUNK = open_stream(AUD_FILE)
+stream, wf, CHUNK = open_stream(SEPARATED_AUDIO_FILE)
 
 # Initialize display state
 state = np.zeros((cell_height, cell_width))
@@ -168,9 +179,11 @@ while run:
 
 pygame.quit()
 
+save_dir = '\\'.join(SEPARATED_AUDIO_FILE.split('\\')[:-1])
+
 # Save audio thresholds to pickle file
 pickle.dump({'thresholds': thresh,
              'buckets': buckets,
              'min_buckets': min_bucket,
              'max_buckets': max_bucket,
-             'audio_file': AUD_FILE.split('\\')[-1]}, open(os.path.join(AUD_DIR, SAVE_FILE), "wb"))
+             'audio_file': SEPARATED_AUDIO_FILE.split('\\')[-1]}, open(os.path.join(save_dir, SAVE_FILE), "wb"))

@@ -1,9 +1,14 @@
 import wave
 import pyaudio
+from spleeter.separator import Separator
+from spleeter.audio import STFTBackend
 import numpy as np
 from tqdm import tqdm
 import os
+import sys
 import pickle
+
+SEPARATE_DICT = {0: 'drums.wav', 1: 'bass.wav', 2: 'vocals.wav', 3: 'other.wav'}
 
 def open_stream(audio_file, CHUNK_MUL=1):
     CHUNK = 1024 * CHUNK_MUL
@@ -190,3 +195,24 @@ def moving_average(x, width=10):
 def is_increasing(data):
     data = moving_average(data, width=400)
     return np.mean(np.diff(data, n=2)) > 0
+
+def separate_audio_tracks(audio_file, save_dir=None, use_gpu=True):
+    if not save_dir:
+        save_dir = "Media\\Audio\\Separated"
+
+    if use_gpu:
+        os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+    else:
+        os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+
+    audio_filename = audio_file.split('\\')[-1]
+    separated_path = os.path.join(save_dir, audio_filename.split('.')[0])
+    if os.path.exists(separated_path) and len(os.listdir(separated_path)) > 0:
+        print('Separated tracks found. Skipping audio track separation.')
+    else:
+        print('Separating music in to drums, bass, vocals, & other and saving in save_dir.')
+        mult = False if 'win' in sys.platform else True # Handle windows lack of support for multiprocess module
+        separator = Separator('spleeter:4stems', multiprocess=mult)  # Split to: Bass, Drums, Vocals, & Other
+        separator.separate_to_file(audio_file, save_dir, synchronous=True)
+
+    return os.path.join(save_dir, audio_filename.split('.')[0])

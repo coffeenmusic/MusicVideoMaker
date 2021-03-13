@@ -1,6 +1,7 @@
 
+
 # Overview
-Song + Video and/or Images + Python = Music Video
+Song + Video + Python = Music Video
 1. Choose a song. Currently only supports .wav Audio.
 2. Choose a set of videos (or clips).
 3. Generate Audio Thresholds: set_audio_thresholds.py which creates a threshold file used when processing the music video.
@@ -15,17 +16,21 @@ Song + Video and/or Images + Python = Music Video
 - Spleeter: Separates song in to drum, vocal, bass, and other tracks to use for finding split times. This allows for cleaner processing.
 
 # :notes:Generate Audio Thresholds
-    set_audio_thresholds.py
+    python set_audio_thresholds.py
 
 This will play the audio file in real time and display an equalizer. Each bar on the equalizer represents a frequency range. Click on a horizontal bar to set its threshold level, this will add a red horizontal bar at that frequency range (Right click to reset). You can set different thresholds for each frequency range or leave them at 0 to ignore that range. Once a threshold is set, the screen will flash blue every time that threshold is exceeded to indicate where video will be cut. Press space bar to toggle the equalizer display and only show the blue flash. After exiting the tool, the thresholds will be saved and imported automatically when creating a music video.
 
+# :movie_camera:Getting Started
+	run.py -m "Media\Audio\Greydon Square - Society Versus Nature.wav"
+Video files will be referenced from the video directory at Media\Videos\ or can be manually set with -v option.
+
 # Options
     run.py
-    
-	-a path\file.wav: Audio Reference Path & File
+ 
 	-m path\file.wav: Music file
 	-v path: Video Directory Path
 	-n export_filename.mp4: Name & file extension of exported music video. Defaults to music_video.mp4 if not used.
+	-a path\file.wav: Audio Reference Path & File (Only use to bypass spleeter and default use of separated audio file)
 	-shuffle count: Shuffles clips and exports number of music videos specified
 	-start: Start music video creation at this timestamp in seconds
 	-stop: Stop music video creation at this timestamp in seconds
@@ -34,47 +39,42 @@ This will play the audio file in real time and display an equalizer. Each bar on
 	-use_clip_dir: Uses clips in clip directory to create music video
 	-freq seconds: How often in seconds to compare video frames for a scene change. Default 1 second.
 
-# :movie_camera:Create Music Video - Examples 
+# Option Examples 
 Examples assume 'Media\Videos\' video directory
-
-### Run w/ song and reference audio 
-	run.py -m "Media\Audio\Greydon Square - Society Versus Nature.wav" -a "Media\Audio\drums.wav"
-Reference audio is used to more easily pick out beats where video should be split. I recommend using spleeter
-to split the music in drums, vocals, etc. and generally use the drums track.
-
-
 	
 ### Export video to clips directory as separate clips
 	run.py -export_clips
+Exports to Media\Clips\
 
 ### Use clips directory to create music video
+    run.py -use_clip_dir -m "Media\Audio\Greydon Square - Society Versus Nature.wav"
 Note: Unwanted clips should be removed from this directory before processing
-	run.py -use_clip_dir
 	
 ### Create music video from audio between start & stop time [seconds]
-	run.py -m "Media\Audio\Greydon Square - Society Versus Nature.wav" -a "Media\Audio\drums.wav" -start 20 -stop 40
+	run.py -m "Media\Audio\Greydon Square - Society Versus Nature.wav" -start 20 -stop 40
 	
 ### Create 5 music videos w/ shuffled clips
-	run.py -m "Media\Audio\Greydon Square - Society Versus Nature.wav" -a "Media\Audio\drums.wav" -shuffle 5
+	run.py -m "Media\Audio\Greydon Square - Society Versus Nature.wav" -shuffle 5
 	
 ### Only use videos from video directory once & stop when out of video clips
-	run.py -m "Media\Audio\Greydon Square - Society Versus Nature.wav" -a "Media\Audio\drums.wav" -use_once
+	run.py -m "Media\Audio\Greydon Square - Society Versus Nature.wav" -use_once
 	
 ### Create video from images
-	run.py -m "Media\Audio\Greydon Square - Society Versus Nature.wav" -a "Media\Audio\drums.wav" -use_img_dir
+	run.py -m "Media\Audio\Greydon Square - Society Versus Nature.wav"
+Run normally, but add images to Videos directory.
 	
 ### Use different video directory
-	run.py -m "Media\Audio\Greydon Square - Society Versus Nature.wav" -a "Media\Audio\drums.wav" -v C:\My\Video\Directory\
-	
-### Change audio splice amplitude threshold
-	run.py -m "Media\Audio\Greydon Square - Society Versus Nature.wav" -a "Media\Audio\drums.wav" -t 500000000
+	run.py -m "Media\Audio\Greydon Square - Society Versus Nature.wav" -v C:\My\Video\Directory\
 
 # TODO:
-- Build spleeter in to processing
 - Update yaml environment file
 - Create pip package
 - Add arg for changing check frequency from 1 second to other values
 - Add Media, Images, Video, Clips, & Audio directories as default to project and git
+- Make Media all directory references that are hard coded, global references in a file
+- Try decord gpu with set CUDA_VISIBLE_DEVICES=1
+- Add spleeter separation to set thresholds function
+- If only audio filename is given, assume Media\Audio\ directory path
 - [Image Segmentation](https://zulko.github.io/moviepy/examples/compo_from_image.html)
 
 # Spleeter Command

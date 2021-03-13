@@ -1,4 +1,4 @@
-from audio import get_audio_data, get_saved_audio, get_split_times, is_increasing
+from audio import get_audio_data, get_saved_audio, get_split_times, is_increasing, separate_audio_tracks, SEPARATE_DICT
 from video import build_musicvideo_clips, export_clips, VIDEO_EXTENSIONS, IMG_EXTENSIONS
 from other import get_unique_filename, add_dirs_if_not_exists
 from moviepy.editor import VideoFileClip, concatenate_videoclips, AudioFileClip
@@ -19,8 +19,8 @@ TODO:
 - Save audio data for reuse
 """
 
-AUD_FILE = 'None Specified'
-FINAL_AUDIO = 'None Specified'
+SEPARATED_AUDIO_FILE = None
+MUSIC_FILE = None
 VID_DIR = os.path.join('Media', 'Videos') # Default video directory
 CLIP_DIR = os.path.join('Media', 'Clips')
 AUDIO_DIR = os.path.join('Media', 'Audio') # Default audio directory
@@ -36,8 +36,8 @@ EXPORT_CLIPS = False
 USE_CLIP_DIR = False
 START_TIME = 0
 STOP_TIME = 0
-amp_thresh = 1000000000
 args = sys.argv
+INSTRUMENT = 'drums.wav'
 
 # Print Help
 if len(args) == 1:
@@ -48,28 +48,23 @@ if len(args) == 1:
     print('-n export_filename.mp4')
     exit(0)
 
-# 0 - python directory/script.py
-# 1 - video directory
-# 2 - audio reference
-# 3 - final music
 i = 0
 while True:
-    if args[i] == '-v':
+    if args[i] in ['-v', '-video']:
         i += 1
         VID_DIR = str(args[i])
-    elif args[i] == '-a':
+    elif args[i] in ['-a', '-audio']:
         i += 1
-        AUD_FILE = str(args[i])
-        FINAL_AUDIO = AUD_FILE
-    elif args[i] == '-m':
+        SEPARATED_AUDIO_FILE = str(args[i])
+    elif args[i] in ['-m', '-music']:
         i += 1
-        FINAL_AUDIO = str(args[i])
+        MUSIC_FILE = str(args[i])
     elif args[i] == '-n':
         i += 1
         EXPORT_FILENAME = str(args[i])
-    elif args[i] == '-t':
+    elif args[i] == '-instrument':
         i += 1
-        amp_thresh = int(args[i])
+        INSTRUMENT = SEPARATE_DICT[int(args[i])]
     elif args[i] == '-use_decord':
         USE_DECORD = True
     elif args[i] == '-shuffle':
@@ -110,22 +105,26 @@ if EXPORT_CLIPS:
     export_clips(VID_FILES, clip_dir=CLIP_DIR)
     exit(0)
 
+if not SEPARATED_AUDIO_FILE:
+    save_dir = separate_audio_tracks(MUSIC_FILE)
+    SEPARATED_AUDIO_FILE = os.path.join(save_dir, INSTRUMENT)
+
 # Verify audio files exist
-assert os.path.exists(AUD_FILE), f'Audio file {AUD_FILE} not found.'
-assert os.path.exists(FINAL_AUDIO), f'Audio file {FINAL_AUDIO} not found.'
+assert os.path.exists(SEPARATED_AUDIO_FILE), f'Audio file {SEPARATED_AUDIO_FILE} not found.'
+assert os.path.exists(MUSIC_FILE), f'Audio file {MUSIC_FILE} not found.'
 
 print('Video Directory: ', VID_DIR)
-print('Reference Audio File: ', AUD_FILE)
-print('Song Used in Final Music Video: ', FINAL_AUDIO)
+print('Reference Audio File: ', SEPARATED_AUDIO_FILE)
+print('Song Used in Final Music Video: ', MUSIC_FILE)
 print('Export Filename: ', EXPORT_FILENAME)
 
 start_timer = time.time()
 
-saved_data = get_saved_audio(AUD_FILE)
+saved_data = get_saved_audio(SEPARATED_AUDIO_FILE)
 if saved_data:
     audio_data, CHUNK, RATE = saved_data
 else:
-    audio_data, CHUNK, RATE = get_audio_data(AUD_FILE)
+    audio_data, CHUNK, RATE = get_audio_data(SEPARATED_AUDIO_FILE)
 
 # Import saved audio amplitude threshold data
 saved_thresholds = pickle.load(open(os.path.join(AUDIO_DIR, SAVED_THRESH_FILENAME), "rb"))
@@ -160,7 +159,7 @@ for export_cnt in range(SHUFFLE_CNT):
     music_video = concatenate_videoclips(mv_clips, method='compose')
 
     STOP_TIME = audio_split_times[-1] if music_video.duration < STOP_TIME or STOP_TIME == 0 else STOP_TIME
-    music_audio = AudioFileClip(FINAL_AUDIO).subclip(START_TIME, STOP_TIME)
+    music_audio = AudioFileClip(MUSIC_FILE).subclip(START_TIME, STOP_TIME)
 
     final_music_video = music_video.set_audio(music_audio)
 
