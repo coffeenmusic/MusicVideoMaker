@@ -2,9 +2,9 @@
 __pycache__/
 pretrained_models/
 output/
-Media/
 *.pkl
 *.wav
+*.mp3
 *.mp4
 *.m4v
 *.mkv
@@ -13,3 +13,5 @@ Media/
 *.bmp
 *.gif
 *.tif
+*.exe
+*.tmp
