@@ -13,12 +13,6 @@ import os
 import time
 import pickle
 
-"""
-TODO:
-- Continuous Mode with shuffle option
-- Save audio data for reuse
-"""
-
 SEPARATED_AUDIO_FILE = None
 MUSIC_FILE = None
 VID_DIR = os.path.join('Media', 'Videos') # Default video directory
@@ -98,11 +92,11 @@ while True:
 
 add_dirs_if_not_exists([VID_DIR, AUDIO_DIR, CLIP_DIR])
 
-VID_FILES = [os.path.join(VID_DIR, f) for f in os.listdir(VID_DIR) if f.split('.')[-1].lower() in VIDEO_EXTENSIONS]
-assert len(VID_FILES) > 0, f'No videos found in video directory {VID_DIR}'
+VIDEO_FILES = [os.path.join(VID_DIR, f) for f in os.listdir(VID_DIR) if f.split('.')[-1].lower() in VIDEO_EXTENSIONS]
+assert len(VIDEO_FILES) > 0, f'No videos found in video directory {VID_DIR}'
 
 if EXPORT_CLIPS:
-    export_clips(VID_FILES, clip_dir=CLIP_DIR)
+    export_clips(VIDEO_FILES, clip_dir=CLIP_DIR)
     exit(0)
 
 if not SEPARATED_AUDIO_FILE:
@@ -127,7 +121,8 @@ else:
     audio_data, CHUNK, RATE = get_audio_data(SEPARATED_AUDIO_FILE)
 
 # Import saved audio amplitude threshold data
-saved_thresholds = pickle.load(open(os.path.join(AUDIO_DIR, SAVED_THRESH_FILENAME), "rb"))
+thresh_path = os.path.join(os.path.dirname(SEPARATED_AUDIO_FILE), SAVED_THRESH_FILENAME)
+saved_thresholds = pickle.load(open(thresh_path, "rb"))
 audio_thresholds = saved_thresholds['thresholds']
 freq_buckets = saved_thresholds['buckets']
 freq_buckets_min = saved_thresholds['min_buckets']
@@ -149,10 +144,10 @@ else:
     print(f'{SHUFFLE_CNT} music videos to be created with same clips shuffled on each iteration.')
 
 if USE_CLIP_DIR:
-    VID_FILES = [os.path.join(CLIP_DIR, d) for d in os.listdir(CLIP_DIR) if d.split('.')[-1] in VIDEO_EXTENSIONS + IMG_EXTENSIONS]
+    VIDEO_FILES = [os.path.join(CLIP_DIR, d) for d in os.listdir(CLIP_DIR) if d.split('.')[-1] in VIDEO_EXTENSIONS + IMG_EXTENSIONS]
 
 for export_cnt in range(SHUFFLE_CNT):
-    mv_clips = build_musicvideo_clips(VID_FILES, audio_split_times, shuffle=shuffle, chunk_size=CHUNK_SIZE)
+    mv_clips = build_musicvideo_clips(VIDEO_FILES, audio_split_times, shuffle=shuffle, chunk_size=CHUNK_SIZE)
     assert len(mv_clips) > 0, "Error no clips created. Clip lens may be too short for audio splice times."
 
     print(f'Build complete. Cut {len(mv_clips)} clips to match audio slices. Exporting video...')
