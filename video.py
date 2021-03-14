@@ -108,6 +108,7 @@ def get_clip_times(video_path_list, split_thresh=5, use_once=False, shuffle=Fals
 
             if shuffle:
                 split_times = shuffle_in_chunks(split_times, chunk_size=chunk_size)
+
             yield path, split_times
 
         if use_once:
@@ -116,7 +117,7 @@ def get_clip_times(video_path_list, split_thresh=5, use_once=False, shuffle=Fals
             print('No valid videos found.')
             exit(0)
 
-def build_musicvideo_clips(video_path_list, audio_split_times, shuffle=False, use_once=False, thresh=5, thresh_inc=5, max_thresh=20, chunk_size=20):
+def build_musicvideo_clips(video_path_list, audio_split_times, shuffle=False, use_once=False, init_thresh=5, thresh_inc=5, max_thresh=20, chunk_size=20):
 
     with tqdm(total=len(audio_split_times)) as pbar:  # Create progress bar
 
@@ -126,11 +127,20 @@ def build_musicvideo_clips(video_path_list, audio_split_times, shuffle=False, us
 
         audio_cut_len = audio_cut_lens[0]
 
+        clip_time_gen = get_clip_times(video_path_list, shuffle=shuffle, use_once=use_once, split_thresh=thresh, chunk_size=chunk_size)
+
+        thresh = init_thresh
         prev_clip_len = 0
         while thresh < max_thresh:
             temp_cnt = 0
             for path, clip_times in get_clip_times(video_path_list, shuffle=shuffle, use_once=use_once, split_thresh=thresh, chunk_size=chunk_size):
                 init_video = False
+
+                # Break if no clips found that are long enough for audio cut
+                max_clip_len = max([stop-start for start, stop in clip_times])
+                if max_clip_len < audio_cut_len:
+                    print(f'No video clips created long enough for audio cut length. Video clips max={max_clip_len}, Audio cut={audio_cut_len}')
+                    break
 
                 for start_time, stop_time in clip_times:
                     clip_len = stop_time - start_time
@@ -149,6 +159,7 @@ def build_musicvideo_clips(video_path_list, audio_split_times, shuffle=False, us
 
                         # Number of clips is still less than needed to finish music video
                         if len(mv_clips) < len(audio_cut_lens):
+                            print(f'')
                             audio_cut_len = audio_cut_lens[len(mv_clips)]
                             pbar.update(1)  # Update progress bar
                         else:  # All clips created to match audio beats
@@ -157,6 +168,8 @@ def build_musicvideo_clips(video_path_list, audio_split_times, shuffle=False, us
             if (len(mv_clips) - prev_clip_len) == 0:
                 print(f'No clips added using threshold {thresh}. Trying increased split threshold {thresh + thresh_inc}.')
                 thresh += thresh_inc
+            else:
+                thresh = init_thresh
 
             prev_clip_len = len(mv_clips)
 
