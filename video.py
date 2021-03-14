@@ -1,4 +1,4 @@
-from other import get_next_path_index
+from other import get_next_path_index, get_ext, shuffle_in_chunks
 from moviepy.editor import VideoFileClip, ImageClip
 from decord import VideoReader
 from decord import cpu, gpu
@@ -18,12 +18,22 @@ def scene_changed(prev_frame, frame, delta_thresh=10):
         return True
     return False
 
-def get_video_split_times(vid_filename, check_freq=1, split_thresh=10):
+def validate_video(vr):
+    intervals = int(len(vr) // 10)
+    return True if np.diff(vr[::intervals].asnumpy()).mean() > 0 else False
+
+def get_video_split_times(vid_filename, check_freq=1, split_thresh=10, mode='cpu'):
     """
     check_freq [seconds] - how often to compare two frames for scene change
     split_thresh - mean difference in pixel values allowed before triggering split
     """
-    vr = VideoReader(vid_filename, ctx=cpu(0))
+    ctx = gpu(0) if mode == 'gpu' else cpu(0)
+
+    vr = VideoReader(vid_filename, ctx=ctx)
+    if not validate_video(vr):
+        print(f'Invalid video. Decord does not recognize frame changes in this video. {vid_filename}')
+        return []
+
     fps = vr.get_avg_fps()
 
     start_time = 0  # time in seconds from video where current clip starts
@@ -64,28 +74,6 @@ def export_clips(video_path_list, clip_dir=None, split_thresh=5):
             clip = video.subclip(start_time, stop_time)
             clip.write_videofile(os.path.join(clip_dir, clip_name), verbose=False)
 
-
-def shuffle_in_chunks(in_list, chunk_size=20):
-    """
-    Shuffle a list but group together list items close to eachother in chunks
-        in_list - list to be shuffled
-        chunk_size - length of clips grouped together that aren't shuffled (Example: [3,4,1,2,5,6] chunk=2
-    """
-    if len(in_list) == 1:
-        return in_list
-
-    chunk_size = int(len(in_list) / 2) if chunk_size > len(in_list) / 2 else chunk_size # Allow minimum shuffle if list too small or chunk too large
-    new_len = (len(in_list) // chunk_size) * chunk_size
-    in_list = in_list[:new_len]
-
-    # Create list of indices that are shuffled in chunks
-    shuffle_idxs = np.arange(new_len)  # Create index array
-    shuffle_idxs = shuffle_idxs.reshape(-1, chunk_size)  # Reshape for shuffling in chunks
-    np.random.shuffle(shuffle_idxs)
-    shuffle_idxs = shuffle_idxs.flatten()
-
-    return [in_list[i] for i in shuffle_idxs]
-
 def get_clip_times(video_path_list, split_thresh=5, use_once=False, shuffle=False, frame_check_freq=1, max_time=5000, chunk_size=20):
     """
     Iterate video frames, split at scene changes, and create clips to yield back
@@ -97,10 +85,18 @@ def get_clip_times(video_path_list, split_thresh=5, use_once=False, shuffle=Fals
 
     while True:
         video_path_list = shuffle_in_chunks(video_path_list, chunk_size=1) if shuffle else video_path_list
+        invalid_videos = []
         for video_cnt, path in enumerate(video_path_list):
-            if path.split('.')[-1] in VIDEO_EXTENSIONS:
+            if path in invalid_videos:
+                continue
+
+            ext = get_ext(path)
+            if ext in VIDEO_EXTENSIONS:
                 split_times = get_video_split_times(path, check_freq=frame_check_freq, split_thresh=split_thresh)
-            elif path.split('.')[-1] in IMG_EXTENSIONS:
+                if not split_times:
+                    invalid_videos += [path]
+                    continue
+            elif ext in IMG_EXTENSIONS:
                 split_times = [(0, max_time)]
 
             if shuffle:
@@ -109,6 +105,9 @@ def get_clip_times(video_path_list, split_thresh=5, use_once=False, shuffle=Fals
 
         if use_once:
             break
+        if invalid_videos == video_path_list:
+            print('No valid videos found.')
+            exit(0)
 
 def build_musicvideo_clips(video_path_list, audio_split_times, shuffle=False, use_once=False, thresh=5, thresh_inc=5, max_thresh=20, chunk_size=20):
 
@@ -122,6 +121,7 @@ def build_musicvideo_clips(video_path_list, audio_split_times, shuffle=False, us
 
         prev_clip_len = 0
         while thresh < max_thresh:
+            temp_cnt = 0
             for path, clip_times in get_clip_times(video_path_list, shuffle=shuffle, use_once=use_once, split_thresh=thresh, chunk_size=chunk_size):
                 init_video = False
 

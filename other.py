@@ -1,5 +1,6 @@
 from PIL import Image
 from matplotlib.pyplot import imshow, show
+import numpy as np
 import os
 
 def print_frame(frame):
@@ -35,3 +36,28 @@ def get_next_path_index(path, ext_list=None):
         next_idx = max(ids) + 1
 
     return next_idx
+
+def get_ext(path, include_period=False):
+    ext = os.path.splitext(path)[-1].lower()
+    return ext if include_period else ext[1:]
+
+def shuffle_in_chunks(in_list, chunk_size=20):
+    """
+    Shuffle a list but group together list items close to eachother in chunks
+        in_list - list to be shuffled
+        chunk_size - length of clips grouped together that aren't shuffled (Example: [3,4,1,2,5,6] chunk=2
+    """
+    if len(in_list) == 1:
+        return in_list
+
+    chunk_size = int(len(in_list) / 2) if chunk_size > len(in_list) / 2 else chunk_size # Allow minimum shuffle if list too small or chunk too large
+    new_len = (len(in_list) // chunk_size) * chunk_size
+    in_list = in_list[:new_len]
+
+    # Create list of indices that are shuffled in chunks
+    shuffle_idxs = np.arange(new_len)  # Create index array
+    shuffle_idxs = shuffle_idxs.reshape(-1, chunk_size)  # Reshape for shuffling in chunks
+    np.random.shuffle(shuffle_idxs)
+    shuffle_idxs = shuffle_idxs.flatten()
+
+    return [in_list[i] for i in shuffle_idxs]
