@@ -30,19 +30,26 @@ def get_video_split_times(vid_filename, check_freq=1, split_thresh=10, mode='cpu
     ctx = gpu(0) if mode == 'gpu' else cpu(0)
 
     vr = VideoReader(vid_filename, ctx=ctx)
-    if not validate_video(vr):
-        print(f'Invalid video. Decord does not recognize frame changes in this video. {vid_filename}')
-        return []
 
+    frame_cnt = len(vr)
     fps = vr.get_avg_fps()
+
+    if not validate_video(vr):
+        vr = VideoFileClip(vid_filename)
+        moviepy_iterator = enumerate(vr.iter_frames())
 
     start_time = 0  # time in seconds from video where current clip starts
 
     frame_freq = int(fps * check_freq)
 
     times = []
-    for i in range(0, len(vr), frame_freq):
-        frame = vr[i].asnumpy()
+    idx = 0
+    for i in range(0, frame_cnt, frame_freq):
+        if 'VideoReader' in str(type(vr)): # Decord
+            frame = vr[i].asnumpy()
+        else: # Moviepy (Slower)
+            while i >= idx:
+                idx, frame = next(moviepy_iterator)
 
         if i > 0:  # Skip first frame
             if start_time != stop_time and scene_changed(prev_frame, frame, delta_thresh=split_thresh):
