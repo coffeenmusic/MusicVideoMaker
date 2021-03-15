@@ -8,7 +8,7 @@ from tqdm import tqdm
 import os
 import psutil
 
-VIDEO_EXTENSIONS = ['mp4', 'avi', 'mkv', 'm4v']
+VIDEO_EXTENSIONS = ['mp4', 'avi', 'mkv', 'm4v', 'mov']
 IMG_EXTENSIONS = ['jpg', 'jpeg'] #, 'png', 'bmp', 'gif', 'tif'
 
 def scene_changed(prev_frame, frame, delta_thresh=10):
@@ -127,20 +127,24 @@ def build_musicvideo_clips(video_path_list, audio_split_times, shuffle=False, us
 
         audio_cut_len = audio_cut_lens[0]
 
-        clip_time_gen = get_clip_times(video_path_list, shuffle=shuffle, use_once=use_once, split_thresh=thresh, chunk_size=chunk_size)
-
         thresh = init_thresh
         prev_clip_len = 0
         while thresh < max_thresh:
-            temp_cnt = 0
+
+            short_list = []
             for path, clip_times in get_clip_times(video_path_list, shuffle=shuffle, use_once=use_once, split_thresh=thresh, chunk_size=chunk_size):
                 init_video = False
 
-                # Break if no clips found that are long enough for audio cut
+                # Continue if no clips found that are long enough for audio cut, break if all videos tried
                 max_clip_len = max([stop-start for start, stop in clip_times])
                 if max_clip_len < audio_cut_len:
                     print(f'No video clips created long enough for audio cut length. Video clips max={max_clip_len}, Audio cut={audio_cut_len}')
-                    break
+                    if path not in short_list:
+                        short_list += [path]
+                    if all([v in short_list for v in video_path_list]):
+                        break
+                    else:
+                        continue
 
                 for start_time, stop_time in clip_times:
                     clip_len = stop_time - start_time

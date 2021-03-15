@@ -8,6 +8,7 @@ output/
 *.mp4
 *.m4v
 *.mkv
+*.mov
 *.jpg
 *.png
 *.bmp
