@@ -153,42 +153,6 @@ def get_split_times(data, rate, thresholds, buckets, buckets_min, buckets_max, m
 
     return times
 
-def get_split_times_simple(data, rate, amp_thresh, min_reset=125, chunk=1024, start_time=0, stop_time=0):
-    '''
-    min_reset [ms]: length of time (in ms) to wait before a new split can occur
-    start_time[s]: start audio data here
-    stop_time [s]: stop audio data here
-    '''
-    stop_time = len(data) * (chunk / rate) if stop_time == 0 else stop_time
-    # if start_time > 0 or stop_time > 0:
-    #     data, _, _ = filter_audio_time(data, rate, chunk, start_time, stop_time)
-
-    min_reset_frame_cnt = int(min_reset / ((chunk / rate) * 1000)) + 2
-
-    abv_thresh = [np.max(d) > amp_thresh and is_increasing(d) for d in data]
-    times = [start_time]
-
-    i = 0
-    while True:
-        time = i * chunk / rate
-
-        # Filter to start & stop times
-        if time >= start_time and time <= stop_time:
-            if abv_thresh[i] == True:
-                times += [time]
-                i += min_reset_frame_cnt
-            else:
-                i += 1
-        else:
-            i += 1
-
-        if i >= len(abv_thresh):
-            # Add final time
-            times += [stop_time]
-            break
-
-    return times
-
 def moving_average(x, width=10):
     return np.convolve(x, np.ones(width), 'valid') / width
 
