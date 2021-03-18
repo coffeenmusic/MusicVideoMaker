@@ -1,11 +1,13 @@
-
-
 # Overview
 Song + Video + Python = Music Video
 1. Choose a song. Currently only supports .wav Audio.
 2. Choose a set of videos (or clips).
 3. Generate Audio Thresholds: set_audio_thresholds.py which creates a threshold file used when processing the music video.
 4. Create Music Video: run.py which splits videos on beats which exceed the threshold defined in the previous step. Then it stitches all the clips together and exports the final music video.
+
+### Example Video:
+Uses drum track from Greydon Square's - Galaxy Rise to split video clips.
+[![Example Music Video](docs/thumbnail.jpg)](https://youtu.be/WkC0aXchnhw "Generated Video")
 
 # Dependencies
 - Uses ffmpeg, ensure ffmpeg installed and PATH links to it's location.
