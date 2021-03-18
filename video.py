@@ -117,7 +117,7 @@ def get_clip_times(video_path_list, split_thresh=5, use_once=False, shuffle=Fals
             print('No valid videos found.')
             exit(0)
 
-def build_musicvideo_clips(video_path_list, audio_split_times, shuffle=False, use_once=False, init_thresh=5, thresh_inc=5, max_thresh=20, chunk_size=20):
+def build_musicvideo_clips(video_path_list, audio_split_times, shuffle=False, use_once=False, init_thresh=5, thresh_inc=5, max_thresh=20, chunk_size=20, video_height=1080):
 
     with tqdm(total=len(audio_split_times)) as pbar:  # Create progress bar
 
@@ -151,11 +151,17 @@ def build_musicvideo_clips(video_path_list, audio_split_times, shuffle=False, us
 
                     # Video clip must be longer than audio split time so clip can be trimmed down to match audio len
                     if clip_len > audio_cut_len:
+
+                        # Initialize VideoFileClip from video path
                         if not(init_video):
                             if path.split('.')[-1] in VIDEO_EXTENSIONS:
                                 video = VideoFileClip(path)
                             elif path.split('.')[-1] in IMG_EXTENSIONS:
-                                video = ImageClip(path).set_pos(("center", "center")).resize(height=1080)
+                                video = ImageClip(path).set_pos(("center", "center"))
+
+
+                            video = video.resize((1920, 1080))
+
                             init_video = True
 
                         # Add video clip to music video
