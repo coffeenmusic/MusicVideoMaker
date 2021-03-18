@@ -16,3 +16,4 @@ output/
 *.tif
 *.exe
 *.tmp
+!docs/thumbnail.jpg
