@@ -23,6 +23,19 @@ def add_dirs_if_not_exists(dir_list):
     for dir in dir_list:
         if not(os.path.exists(dir)):
             os.mkdir(dir)
+            
+def get_default_files(path, extensions=None):
+    if len(extensions) > 0:
+        extensions = tuple(extensions)
+        files = [os.path.join(path, f) for f in os.listdir(path) if f.lower().endswith(extensions)]
+        
+        # Also check main directory if path doesn't have files
+        if len(files) == 0:
+            files = [f for f in os.listdir() if f.lower().endswith(extensions)]
+            
+        if len(files) > 0:
+            return files
+    return None
 
 def get_next_path_index(path, ext_list=None):
     next_idx = 0

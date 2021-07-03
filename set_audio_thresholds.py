@@ -1,4 +1,5 @@
 from audio import open_stream, get_audio_data, get_saved_audio, fft_to_buckets, get_minmax_bucket_freq, separate_audio_tracks, SEPARATE_DICT
+from other import get_default_files
 import os
 import numpy as np
 import pygame
@@ -33,11 +34,18 @@ while True:
         break
 
 if not MUSIC_FILE:
-    files = [f for f in os.listdir() if f.lower().endswith(('.mp3', '.wav'))]
-    print(files)
-    if len(files) > 0:
+    #audio_dir = os.path.join('Media', 'Audio')
+    #files = [os.path.join(audio_dir, f) for f in os.listdir(audio_dir) if f.lower().endswith(('.mp3', '.wav'))]
+    #if len(files) == 0:
+    #    files = [f for f in os.listdir() if f.lower().endswith(('.mp3', '.wav'))]
+    files = get_default_files(os.path.join('Media', 'Audio'), ('.mp3', '.wav'))
+        
+    if files != None:
         MUSIC_FILE = files[0]
         print(f'Music file found: {MUSIC_FILE}. To use another song, run command with -music filename.mp3')
+    else:
+        print('No music file found. Please specify -music or copy to Media/Audio directory.')
+        exit(0)
 
 if not SEPARATED_AUDIO_FILE:
     save_dir = separate_audio_tracks(MUSIC_FILE)

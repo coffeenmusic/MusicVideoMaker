@@ -163,14 +163,15 @@ def is_increasing(data):
 def separate_audio_tracks(audio_file, save_dir=None, use_gpu=True):
     if not save_dir:
         save_dir = os.path.join('Media', 'Audio', 'Separated')
-
     if use_gpu:
         os.environ["CUDA_VISIBLE_DEVICES"] = "1"
     else:
         os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
-    audio_filename = audio_file.split('\\')[-1]
+    audio_filename = os.path.split(audio_file)[1]
+    print('audio_filename', audio_filename)
     separated_path = os.path.join(save_dir, audio_filename.split('.')[0])
+    print('separated_path', separated_path)
     if os.path.exists(separated_path) and len(os.listdir(separated_path)) > 0:
         print('Separated tracks found. Skipping audio track separation.')
     else:
@@ -178,5 +179,4 @@ def separate_audio_tracks(audio_file, save_dir=None, use_gpu=True):
         mult = False if 'win' in sys.platform else True # Handle windows lack of support for multiprocess module
         separator = Separator('spleeter:4stems', multiprocess=mult)  # Split to: Bass, Drums, Vocals, & Other
         separator.separate_to_file(audio_file, save_dir, synchronous=True)
-
     return os.path.join(save_dir, audio_filename.split('.')[0])

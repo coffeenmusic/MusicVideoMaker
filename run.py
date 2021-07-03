@@ -1,6 +1,6 @@
 from audio import get_audio_data, get_saved_audio, get_split_times, is_increasing, separate_audio_tracks, SEPARATE_DICT
 from video import build_musicvideo_clips, export_clips, VIDEO_EXTENSIONS, IMG_EXTENSIONS
-from other import get_unique_filename, add_dirs_if_not_exists
+from other import get_unique_filename, add_dirs_if_not_exists, get_default_files
 from moviepy.editor import VideoFileClip, concatenate_videoclips, AudioFileClip
 from decord import VideoReader
 from decord import cpu, gpu
@@ -93,6 +93,13 @@ while True:
     i += 1
     if i >= len(args):
         break
+        
+if not MUSIC_FILE:
+    print('No song provided by user. For user specified song use -m command argument.')
+    files = get_default_files(os.path.join('Media', 'Audio'), ('.mp3', '.wav'))
+    if files != None:
+        MUSIC_FILE = files[0]
+        print(f'Music file found: {MUSIC_FILE}. To use another song, run command with -music filename.mp3')
 
 add_dirs_if_not_exists([VID_DIR, AUDIO_DIR, CLIP_DIR])
 
