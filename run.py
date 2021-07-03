@@ -34,15 +34,6 @@ args = sys.argv
 INSTRUMENT = 'drums.wav'
 HEIGHT = 1080
 
-# Print Help
-if len(args) == 1:
-    print('Auto Music Video Maker Commands:')
-    print('-a Audio\\Path\\ref_audio.wav')
-    print('-m Audio\\Path\\final_music.wav')
-    print('-v Video\\Set\\Dir\\')
-    print('-n export_filename.mp4')
-    exit(0)
-
 i = 0
 while True:
     if args[i] in ['-v', '-video']:
@@ -100,6 +91,14 @@ if not MUSIC_FILE:
     if files != None:
         MUSIC_FILE = files[0]
         print(f'Music file found: {MUSIC_FILE}. To use another song, run command with -music filename.mp3')
+        
+if not MUSIC_FILE:
+    print('Auto Music Video Maker Commands:')
+    print('-a Audio\\Path\\ref_audio.wav')
+    print('-m Audio\\Path\\final_music.wav')
+    print('-v Video\\Set\\Dir\\')
+    print('-n export_filename.mp4')
+    exit(0)
 
 add_dirs_if_not_exists([VID_DIR, AUDIO_DIR, CLIP_DIR])
 
