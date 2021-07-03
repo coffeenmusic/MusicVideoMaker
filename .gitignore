@@ -6,6 +6,7 @@ output/
 *.wav
 *.mp3
 *.mp4
+*.avi
 *.m4v
 *.mkv
 *.mov
