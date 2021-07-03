@@ -166,6 +166,7 @@ def build_musicvideo_clips(video_path_list, audio_split_times, shuffle=False, us
 
                         # Add video clip to music video
                         mv_clips += [video.subclip(start_time, start_time + audio_cut_len)]
+                        video.close()
 
                         # Number of clips is still less than needed to finish music video
                         if len(mv_clips) < len(audio_cut_lens):
