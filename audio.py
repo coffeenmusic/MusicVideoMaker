@@ -162,7 +162,7 @@ def is_increasing(data):
 
 def separate_audio_tracks(audio_file, save_dir=None, use_gpu=True):
     if not save_dir:
-        save_dir = "Media\\Audio\\Separated"
+        save_dir = os.path.join('Media', 'Audio', 'Separated')
 
     if use_gpu:
         os.environ["CUDA_VISIBLE_DEVICES"] = "1"

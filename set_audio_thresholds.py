@@ -32,6 +32,13 @@ while True:
     if i >= len(args):
         break
 
+if not MUSIC_FILE:
+    files = [f for f in os.listdir() if f.lower().endswith(('.mp3', '.wav'))]
+    print(files)
+    if len(files) > 0:
+        MUSIC_FILE = files[0]
+        print(f'Music file found: {MUSIC_FILE}. To use another song, run command with -music filename.mp3')
+
 if not SEPARATED_AUDIO_FILE:
     save_dir = separate_audio_tracks(MUSIC_FILE)
     SEPARATED_AUDIO_FILE = os.path.join(save_dir, INSTRUMENT)
@@ -179,7 +186,8 @@ while run:
 
 pygame.quit()
 
-save_dir = '\\'.join(SEPARATED_AUDIO_FILE.split('\\')[:-1])
+save_dir = os.path.join(save_dir, *SEPARATED_AUDIO_FILE.split('\\')[:-1])
+#save_dir = '\\'.join(SEPARATED_AUDIO_FILE.split('\\')[:-1])
 
 # Save audio thresholds to pickle file
 pickle.dump({'thresholds': thresh,
