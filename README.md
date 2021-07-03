@@ -67,6 +67,9 @@ Run normally, but add images to Videos directory.
 	
 ### Use different video directory
 	run.py -m "Media\Audio\Greydon Square - Society Versus Nature.wav" -v C:\My\Video\Directory\
+    
+# Notes:
+- On linux if getting underflow errors when running set_audio_thresholds.py, run pulseaudio --kill
 
 # TODO:
 - Update yaml environment file
