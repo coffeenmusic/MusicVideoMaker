@@ -7,6 +7,8 @@ import numpy as np
 from tqdm import tqdm
 import os
 import psutil
+import PIL.Image
+PIL.Image.MAX_IMAGE_PIXELS = 933120000
 
 VIDEO_EXTENSIONS = ['mp4', 'avi', 'mkv', 'm4v', 'mov']
 IMG_EXTENSIONS = ['jpg', 'jpeg'] #, 'png', 'bmp', 'gif', 'tif'
@@ -20,7 +22,11 @@ def scene_changed(prev_frame, frame, delta_thresh=10):
 
 def validate_video(vr):
     intervals = int(len(vr) // 10)
-    return True if np.diff(vr[::intervals].asnumpy()).mean() > 0 else False
+    try:
+        valid = True if np.diff(vr[::intervals].asnumpy()).mean() > 0 else False
+    except:
+        valid = False
+    return valid
 
 def get_video_split_times(vid_filename, check_freq=1, split_thresh=10, mode='cpu'):
     """

@@ -12,6 +12,7 @@ import sys
 import os
 import time
 import pickle
+import warnings
 
 SEPARATED_AUDIO_FILE = None
 MUSIC_FILE = None
@@ -102,7 +103,7 @@ if not MUSIC_FILE:
 
 add_dirs_if_not_exists([VID_DIR, AUDIO_DIR, CLIP_DIR])
 
-VIDEO_FILES = [os.path.join(VID_DIR, f) for f in os.listdir(VID_DIR) if f.split('.')[-1].lower() in VIDEO_EXTENSIONS]
+VIDEO_FILES = [os.path.join(VID_DIR, f) for f in os.listdir(VID_DIR) if f.split('.')[-1].lower() in VIDEO_EXTENSIONS + IMG_EXTENSIONS]
 assert len(VIDEO_FILES) > 0, f'No videos found in video directory {VID_DIR}'
 
 if EXPORT_CLIPS:
@@ -162,6 +163,7 @@ for export_cnt in range(SHUFFLE_CNT):
 
     print(f'Build complete. Cut {len(mv_clips)} clips to match audio slices. Exporting video...')
     music_video = concatenate_videoclips(mv_clips, method='compose')
+    #del mv_clips
 
     STOP_TIME = audio_split_times[-1] if music_video.duration < STOP_TIME or STOP_TIME == 0 else STOP_TIME
     music_audio = AudioFileClip(MUSIC_FILE).subclip(START_TIME, STOP_TIME)
