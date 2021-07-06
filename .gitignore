@@ -18,3 +18,4 @@ output/
 *.exe
 *.tmp
 !docs/thumbnail.jpg
+!docs/thumbnail_psycho.png
