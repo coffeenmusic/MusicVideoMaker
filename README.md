@@ -5,9 +5,12 @@ Song + Video + Python = Music Video
 3. Generate Audio Thresholds: set_audio_thresholds.py which creates a threshold file used when processing the music video.
 4. Create Music Video: run.py which splits videos on beats which exceed the threshold defined in the previous step. Then it stitches all the clips together and exports the final music video.
 
-### Example Video:
+### Example Videos:
+Uses Song Psycho from  Jin Dogg & Over Kill
+[![Example Music Video 1](docs/thumbnail_psycho.png)](https://www.youtube.com/watch?v=zRGkcBHVqoc "Generated Video")
+
 Uses drum track from Greydon Square's - Galaxy Rise to split video clips.
-[![Example Music Video](docs/thumbnail.jpg)](https://youtu.be/WkC0aXchnhw "Generated Video")
+[![Example Music Video 2](docs/thumbnail.jpg)](https://youtu.be/WkC0aXchnhw "Generated Video")
 
 # Dependencies
 - Uses ffmpeg, ensure ffmpeg installed and PATH links to it's location.
